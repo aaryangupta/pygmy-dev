@@ -1,4 +1,4 @@
-sudo apt-get update
+apt-get update
 
 # Base packages to compile and run basic regression tests
 apt-get install -y \
