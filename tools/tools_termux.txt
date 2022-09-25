@@ -28,12 +28,17 @@ apt install git silversearcher-ag wget openssh subversion imagemagick proot nano
 apt install proot-distro
 
 #Install ubuntu
-proot-distro install ubuntu-20.04
-proot-distro login ubuntu-20.04
+apt-get install wget -y
+apt-get install git -y
+cd ~
+git clone https://github.com/aaryangupta/Ubuntu-in-termux.git
+cd ubuntu-in-termux
+chmod +x ubuntu.sh
+./ubuntu.sh -y
+./startubuntu.sh
 #One-time update of Linux
 apt update && apt upgrade
-#Give termux access to your  user directory in android
-termux-setup-storage 
+
 #------------------ End Installing ubuntu on termux----------------------------
 
 #------------------ Setup Pygmy Dev -----------------------------------
@@ -56,7 +61,7 @@ apt install build-essential libssl-dev libffi-dev python-dev bison flex git tcl-
 
 # This will get the Pygmy repo to local
 cd ~
-git clone --recursive https://github.com/optimuslogic/pygmy-dev
+git clone --recursive https://github.com/aaryangupta/pygmy-dev.git
 
 #Compile yosys
 cd ~/pygmy-dev/tools/quicklogic-yosys/
@@ -65,6 +70,12 @@ make -j4 install PREFIX=$INSTALL_DIR
 cd ~
 
 #Compile yosys-plugins
+cd ~
+git clone https://github.com/YosysHQ/yosys.git
+make config-clang
+make
+make test
+make install
 cd ~/pygmy-dev/tools/yosys-symbiflow-plugins/
 export PATH=$INSTALL_DIR/bin:$PATH
 make -j4 install
@@ -72,7 +83,11 @@ cd ~
 
 #Compile VTR
 cd ~/pygmy-dev/tools/vtr-verilog-to-routing/
-make -j4
+./install_apt_packages.sh
+make env
+source .venv/bin/activate
+pip install -r requirements.txt
+make
 cd ~
 
 #Copy VTR to symbiflow
