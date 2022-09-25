@@ -14,24 +14,29 @@ struct t_options {
     argparse::ArgValue<std::string> NetFile;
     argparse::ArgValue<std::string> PlaceFile;
     argparse::ArgValue<std::string> RouteFile;
-    argparse::ArgValue<std::string> BlifFile;
+    argparse::ArgValue<std::string> CircuitFile;
     argparse::ArgValue<std::string> ActFile;
     argparse::ArgValue<std::string> PowerFile;
     argparse::ArgValue<std::string> CmosTechFile;
     argparse::ArgValue<std::string> SDCFile;
 
+    argparse::ArgValue<e_arch_format> arch_format;
     argparse::ArgValue<e_circuit_format> circuit_format;
 
     argparse::ArgValue<std::string> out_file_prefix;
     argparse::ArgValue<std::string> constraints_file;
     argparse::ArgValue<std::string> write_rr_graph_file;
     argparse::ArgValue<std::string> read_rr_graph_file;
+    argparse::ArgValue<std::string> read_vpr_constraints_file;
+    argparse::ArgValue<std::string> write_vpr_constraints_file;
 
     argparse::ArgValue<std::string> write_placement_delay_lookup;
     argparse::ArgValue<std::string> read_placement_delay_lookup;
 
     argparse::ArgValue<std::string> write_router_lookahead;
     argparse::ArgValue<std::string> read_router_lookahead;
+
+    argparse::ArgValue<std::string> write_block_usage;
 
     /* Stage Options */
     argparse::ArgValue<bool> do_packing;
@@ -64,6 +69,7 @@ struct t_options {
     argparse::ArgValue<std::string> disable_errors;
     argparse::ArgValue<std::string> suppress_warnings;
     argparse::ArgValue<bool> allow_dangling_combinational_nodes;
+    argparse::ArgValue<bool> terminate_if_timing_fails;
 
     /* Atom netlist options */
     argparse::ArgValue<bool> absorb_buffer_luts;
@@ -89,6 +95,7 @@ struct t_options {
     argparse::ArgValue<int> pack_feasible_block_array_size;
     argparse::ArgValue<std::vector<std::string>> pack_high_fanout_threshold;
     argparse::ArgValue<int> pack_verbosity;
+    argparse::ArgValue<bool> use_attraction_groups;
 
     /* Placement options */
     argparse::ArgValue<int> Seed;
@@ -113,6 +120,29 @@ struct t_options {
     argparse::ArgValue<e_place_effort_scaling> place_effort_scaling;
     argparse::ArgValue<e_place_delta_delay_algorithm> place_delta_delay_matrix_calculation_method;
     argparse::ArgValue<bool> enable_analytic_placer;
+    argparse::ArgValue<std::vector<float>> place_static_move_prob;
+    argparse::ArgValue<std::vector<float>> place_static_notiming_move_prob;
+    argparse::ArgValue<int> place_high_fanout_net;
+
+    argparse::ArgValue<bool> RL_agent_placement;
+    argparse::ArgValue<bool> place_agent_multistate;
+    argparse::ArgValue<bool> place_checkpointing;
+    argparse::ArgValue<float> place_agent_epsilon;
+    argparse::ArgValue<float> place_agent_gamma;
+    argparse::ArgValue<float> place_dm_rlim;
+    argparse::ArgValue<e_agent_algorithm> place_agent_algorithm;
+    argparse::ArgValue<std::string> place_reward_fun;
+    //argparse::ArgValue<int> place_timing_cost_func;
+    argparse::ArgValue<float> place_crit_limit;
+    argparse::ArgValue<int> place_constraint_expand;
+    argparse::ArgValue<bool> place_constraint_subtile;
+    argparse::ArgValue<int> floorplan_num_horizontal_partitions;
+    argparse::ArgValue<int> floorplan_num_vertical_partitions;
+
+    /*NoC Options*/
+    argparse::ArgValue<bool> noc;
+    argparse::ArgValue<std::string> noc_flows_file;
+    argparse::ArgValue<std::string> noc_routing_algorithm;
 
     /* Timing-driven placement options only */
     argparse::ArgValue<float> PlaceTimingTradeoff;
@@ -155,9 +185,11 @@ struct t_options {
     argparse::ArgValue<e_rr_node_reorder_algorithm> reorder_rr_graph_nodes_algorithm;
     argparse::ArgValue<int> reorder_rr_graph_nodes_threshold;
     argparse::ArgValue<int> reorder_rr_graph_nodes_seed;
+    argparse::ArgValue<bool> flat_routing;
 
     /* Timing-driven router options only */
     argparse::ArgValue<float> astar_fac;
+    argparse::ArgValue<float> router_profiler_astar_fac;
     argparse::ArgValue<float> max_criticality;
     argparse::ArgValue<float> criticality_exp;
     argparse::ArgValue<float> router_init_wirelength_abort_threshold;
@@ -183,10 +215,14 @@ struct t_options {
     /* Analysis options */
     argparse::ArgValue<bool> full_stats;
     argparse::ArgValue<bool> Generate_Post_Synthesis_Netlist;
+    argparse::ArgValue<bool> Generate_Post_Implementation_Merged_Netlist;
     argparse::ArgValue<int> timing_report_npaths;
     argparse::ArgValue<e_timing_report_detail> timing_report_detail;
     argparse::ArgValue<bool> timing_report_skew;
     argparse::ArgValue<std::string> echo_dot_timing_graph_node;
+    argparse::ArgValue<e_post_synth_netlist_unconn_handling> post_synth_netlist_unconn_input_handling;
+    argparse::ArgValue<e_post_synth_netlist_unconn_handling> post_synth_netlist_unconn_output_handling;
+    argparse::ArgValue<std::string> write_timing_summary;
 };
 
 argparse::ArgumentParser create_arg_parser(std::string prog_name, t_options& args);

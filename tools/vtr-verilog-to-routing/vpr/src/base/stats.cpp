@@ -42,13 +42,22 @@ static void get_channel_occupancy_stats();
  *
  * Both a routing and an rr_graph must exist when you call this routine.
  */
-void routing_stats(bool full_stats, enum e_route_type route_type, std::vector<t_segment_inf>& segment_inf, float R_minW_nmos, float R_minW_pmos, float grid_logic_tile_area, enum e_directionality directionality, int wire_to_ipin_switch) {
+void routing_stats(bool full_stats,
+                   enum e_route_type route_type,
+                   std::vector<t_segment_inf>& segment_inf,
+                   float R_minW_nmos,
+                   float R_minW_pmos,
+                   float grid_logic_tile_area,
+                   enum e_directionality directionality,
+                   int wire_to_ipin_switch,
+                   bool is_flat) {
     float area, used_area;
 
     auto& device_ctx = g_vpr_ctx.device();
+    auto& rr_graph = device_ctx.rr_graph;
     auto& cluster_ctx = g_vpr_ctx.clustering();
 
-    int num_rr_switch = device_ctx.rr_switch_inf.size();
+    int num_rr_switch = rr_graph.num_rr_switches();
 
     length_and_bends_stats();
     print_channel_stats();
@@ -90,7 +99,7 @@ void routing_stats(bool full_stats, enum e_route_type route_type, std::vector<t_
 
     if (route_type == DETAILED) {
         count_routing_transistors(directionality, num_rr_switch, wire_to_ipin_switch,
-                                  segment_inf, R_minW_nmos, R_minW_pmos);
+                                  segment_inf, R_minW_nmos, R_minW_pmos, is_flat);
         get_segment_usage_stats(segment_inf);
     }
 
@@ -226,6 +235,7 @@ static void load_channel_occupancies(vtr::Matrix<int>& chanx_occ, vtr::Matrix<in
     t_rr_type rr_type;
 
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
     auto& cluster_ctx = g_vpr_ctx.clustering();
     auto& route_ctx = g_vpr_ctx.routing();
 
@@ -242,7 +252,7 @@ static void load_channel_occupancies(vtr::Matrix<int>& chanx_occ, vtr::Matrix<in
         tptr = route_ctx.trace[net_id].head;
         while (tptr != nullptr) {
             inode = tptr->index;
-            rr_type = device_ctx.rr_nodes[inode].type();
+            rr_type = rr_graph.node_type(RRNodeId(inode));
 
             if (rr_type == SINK) {
                 tptr = tptr->next; /* Skip next segment. */
@@ -251,14 +261,14 @@ static void load_channel_occupancies(vtr::Matrix<int>& chanx_occ, vtr::Matrix<in
             }
 
             else if (rr_type == CHANX) {
-                j = device_ctx.rr_nodes[inode].ylow();
-                for (i = device_ctx.rr_nodes[inode].xlow(); i <= device_ctx.rr_nodes[inode].xhigh(); i++)
+                j = rr_graph.node_ylow(RRNodeId(inode));
+                for (i = rr_graph.node_xlow(RRNodeId(inode)); i <= rr_graph.node_xhigh(RRNodeId(inode)); i++)
                     chanx_occ[i][j]++;
             }
 
             else if (rr_type == CHANY) {
-                i = device_ctx.rr_nodes[inode].xlow();
-                for (j = device_ctx.rr_nodes[inode].ylow(); j <= device_ctx.rr_nodes[inode].yhigh(); j++)
+                i = rr_graph.node_xlow(RRNodeId(inode));
+                for (j = rr_graph.node_ylow(RRNodeId(inode)); j <= rr_graph.node_yhigh(RRNodeId(inode)); j++)
                     chany_occ[i][j]++;
             }
 
@@ -274,6 +284,7 @@ static void load_channel_occupancies(vtr::Matrix<int>& chanx_occ, vtr::Matrix<in
 void get_num_bends_and_length(ClusterNetId inet, int* bends_ptr, int* len_ptr, int* segments_ptr) {
     auto& route_ctx = g_vpr_ctx.routing();
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
 
     t_trace *tptr, *prevptr;
     int inode;
@@ -290,26 +301,25 @@ void get_num_bends_and_length(ClusterNetId inet, int* bends_ptr, int* len_ptr, i
                         "in get_num_bends_and_length: net #%lu has no traceback.\n", size_t(inet));
     }
     inode = prevptr->index;
-    prev_type = device_ctx.rr_nodes[inode].type();
+    prev_type = rr_graph.node_type(RRNodeId(inode));
 
     tptr = prevptr->next;
 
     while (tptr != nullptr) {
         inode = tptr->index;
-        curr_type = device_ctx.rr_nodes[inode].type();
+        curr_type = rr_graph.node_type(RRNodeId(inode));
 
         if (curr_type == SINK) { /* Starting a new segment */
             tptr = tptr->next;   /* Link to existing path - don't add to len. */
             if (tptr == nullptr)
                 break;
 
-            curr_type = device_ctx.rr_nodes[tptr->index].type();
+            curr_type = rr_graph.node_type(RRNodeId(tptr->index));
         }
 
         else if (curr_type == CHANX || curr_type == CHANY) {
             segments++;
-            length += 1 + device_ctx.rr_nodes[inode].xhigh() - device_ctx.rr_nodes[inode].xlow()
-                      + device_ctx.rr_nodes[inode].yhigh() - device_ctx.rr_nodes[inode].ylow();
+            length += rr_graph.node_length(RRNodeId(inode));
 
             if (curr_type != prev_type && (prev_type == CHANX || prev_type == CHANY))
                 bends++;
@@ -333,14 +343,13 @@ void print_wirelen_prob_dist() {
     auto& device_ctx = g_vpr_ctx.device();
     auto& cluster_ctx = g_vpr_ctx.clustering();
 
-    float* prob_dist;
     float norm_fac, two_point_length;
     int bends, length, segments, index;
     float av_length;
-    int prob_dist_size, i, incr;
+    int prob_dist_size, incr;
 
     prob_dist_size = device_ctx.grid.width() + device_ctx.grid.height() + 10;
-    prob_dist = (float*)vtr::calloc(prob_dist_size, sizeof(float));
+    std::vector<float> prob_dist(prob_dist_size, 0.0);
     norm_fac = 0.;
 
     for (auto net_id : cluster_ctx.clb_nlist.nets()) {
@@ -360,11 +369,12 @@ void print_wirelen_prob_dist() {
                 VTR_LOG_WARN("Index (%d) to prob_dist exceeds its allocated size (%d).\n",
                              index, prob_dist_size);
                 VTR_LOG("Realloc'ing to increase 2-pin wirelen prob distribution array.\n");
+
+                /*  Resized to prob_dist + incr. Elements after old prob_dist_size set
+                 *   to 0.0.  */
                 incr = index - prob_dist_size + 2;
                 prob_dist_size += incr;
-                prob_dist = (float*)vtr::realloc(prob_dist, prob_dist_size * sizeof(float));
-                for (i = prob_dist_size - incr; i < prob_dist_size; i++)
-                    prob_dist[i] = 0.0;
+                prob_dist.resize(prob_dist_size);
             }
             prob_dist[index] += (num_sinks) * (1 - two_point_length + index);
 
@@ -375,10 +385,8 @@ void print_wirelen_prob_dist() {
                 VTR_LOG("Realloc'ing to increase 2-pin wirelen prob distribution array.\n");
                 incr = index - prob_dist_size + 2;
                 prob_dist_size += incr;
-                prob_dist = (float*)vtr::realloc(prob_dist,
-                                                 prob_dist_size * sizeof(float));
-                for (i = prob_dist_size - incr; i < prob_dist_size; i++)
-                    prob_dist[i] = 0.0;
+
+                prob_dist.resize(prob_dist_size);
             }
             prob_dist[index] += (num_sinks) * (1 - index + two_point_length);
 
@@ -405,8 +413,6 @@ void print_wirelen_prob_dist() {
     VTR_LOG("Number of 2-pin nets: ;%g;\n", norm_fac);
     VTR_LOG("Expected value of 2-pin net length (R): ;%g;\n", av_length);
     VTR_LOG("Total wirelength: ;%g;\n", norm_fac * av_length);
-
-    free(prob_dist);
 }
 
 /**
@@ -416,7 +422,7 @@ void print_wirelen_prob_dist() {
  * (i.e. the clock when it is marked global).
  */
 void print_lambda() {
-    int ipin, iclass;
+    int ipin;
     int num_inputs_used = 0;
     float lambda;
 
@@ -427,8 +433,7 @@ void print_lambda() {
         VTR_ASSERT(type != nullptr);
         if (!is_io_type(type)) {
             for (ipin = 0; ipin < type->num_pins; ipin++) {
-                iclass = type->pin_class[ipin];
-                if (type->class_inf[iclass].type == RECEIVER) {
+                if (get_pin_type_from_pin_physical_num(type, ipin) == RECEIVER) {
                     ClusterNetId net_id = cluster_ctx.clb_nlist.block_net(blk_id, ipin);
                     if (net_id != ClusterNetId::INVALID())                 /* Pin is connected? */
                         if (!cluster_ctx.clb_nlist.net_is_ignored(net_id)) /* Not a global clock */

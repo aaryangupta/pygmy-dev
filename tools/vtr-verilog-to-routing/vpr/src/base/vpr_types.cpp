@@ -1,5 +1,6 @@
 #include <cmath>
 #include "vpr_types.h"
+#include "globals.h"
 
 t_ext_pin_util_targets::t_ext_pin_util_targets(float default_in_util, float default_out_util) {
     defaults_.input_pin_util = default_in_util;
@@ -70,7 +71,7 @@ t_mode* t_pb::get_mode() const {
 }
 
 /**
- * @brief Returns the t_pb associated with the specified gnode which is contained
+ * @brief Returns the read-only t_pb associated with the specified gnode which is contained
  *        within the current pb
  */
 const t_pb* t_pb::find_pb(const t_pb_graph_node* gnode) const {
@@ -87,6 +88,33 @@ const t_pb* t_pb::find_pb(const t_pb_graph_node* gnode) const {
             const t_pb* child_pb = &child_pbs[ichild_type][ipb];
 
             const t_pb* found_pb = child_pb->find_pb(gnode);
+            if (found_pb != nullptr) {
+                VTR_ASSERT(found_pb->pb_graph_node == gnode);
+                return found_pb; //Found
+            }
+        }
+    }
+    return nullptr; //Not found
+}
+
+/**
+ * @brief Returns the mutable t_pb associated with the specified gnode which is contained
+ *        within the current pb
+ */
+t_pb* t_pb::find_mutable_pb(const t_pb_graph_node* gnode) {
+    //Base case
+    if (pb_graph_node == gnode) {
+        return this;
+    }
+
+    //Search recursively
+    for (int ichild_type = 0; ichild_type < get_num_child_types(); ++ichild_type) {
+        if (child_pbs[ichild_type] == nullptr) continue;
+
+        for (int ipb = 0; ipb < get_num_children_of_type(ichild_type); ++ipb) {
+            t_pb* child_pb = &child_pbs[ichild_type][ipb];
+
+            t_pb* found_pb = child_pb->find_mutable_pb(gnode);
             if (found_pb != nullptr) {
                 VTR_ASSERT(found_pb->pb_graph_node == gnode);
                 return found_pb; //Found
@@ -185,4 +213,54 @@ BitIndex t_pb::atom_pin_bit_index(const t_pb_graph_pin* gpin) const {
  */
 void t_pb::set_atom_pin_bit_index(const t_pb_graph_pin* gpin, BitIndex atom_pin_bit_idx) {
     pin_rotations_[gpin] = atom_pin_bit_idx;
+}
+
+void free_pack_molecules(t_pack_molecule* list_of_pack_molecules) {
+    t_pack_molecule* cur_pack_molecule = list_of_pack_molecules;
+    while (cur_pack_molecule != nullptr) {
+        cur_pack_molecule = list_of_pack_molecules->next;
+        delete list_of_pack_molecules;
+        list_of_pack_molecules = cur_pack_molecule;
+    }
+}
+
+/**
+ * Free linked lists found in cluster_placement_stats_list
+ */
+void free_cluster_placement_stats(t_cluster_placement_stats* cluster_placement_stats_list) {
+    t_cluster_placement_primitive *cur, *next;
+    auto& device_ctx = g_vpr_ctx.device();
+
+    for (const auto& type : device_ctx.logical_block_types) {
+        int index = type.index;
+        cur = cluster_placement_stats_list[index].tried;
+        while (cur != nullptr) {
+            next = cur->next_primitive;
+            delete cur;
+            cur = next;
+        }
+        cur = cluster_placement_stats_list[index].in_flight;
+        while (cur != nullptr) {
+            next = cur->next_primitive;
+            delete cur;
+            cur = next;
+        }
+        cur = cluster_placement_stats_list[index].invalid;
+        while (cur != nullptr) {
+            next = cur->next_primitive;
+            delete cur;
+            cur = next;
+        }
+        for (int j = 0; j < cluster_placement_stats_list[index].num_pb_types; j++) {
+            cur = cluster_placement_stats_list[index].valid_primitives[j]->next_primitive;
+            while (cur != nullptr) {
+                next = cur->next_primitive;
+                delete cur;
+                cur = next;
+            }
+            delete cluster_placement_stats_list[index].valid_primitives[j];
+        }
+        delete[] cluster_placement_stats_list[index].valid_primitives;
+    }
+    delete[] cluster_placement_stats_list;
 }

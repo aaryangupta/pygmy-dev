@@ -40,6 +40,7 @@ option(VTR_ENABLE_CAPNPROTO "Enable capnproto binary serialization support in VP
 #Allow the user to enable/disable VPR analytic placement
 #VPR option --enable_analytic_placer is also required for Analytic Placement
 option(VPR_ANALYTIC_PLACE "Enable analytic placement in VPR." ON)
+option(VPR_ENABLE_INTERCHANGE "Enable FPGA interchange." ON)
 
 option(WITH_BLIFEXPLORER "Enable build with blifexplorer" OFF)
 
@@ -50,6 +51,11 @@ option(ODIN_WARN "Enable building odin with extra warning flags" OFF)
 option(ODIN_COVERAGE "Enable building odin with coverage flags" OFF)
 option(ODIN_TIDY "Enable building odin with clang tidy" OFF)
 option(ODIN_SANITIZE "Enable building odin with sanitize flags" OFF)
+
+# Allow the user to enable building Yosys
+option(WITH_YOSYS "Enable building Yosys" OFF)
+option(ODIN_USE_YOSYS "Enable building Yosys" OFF)
+option(YOSYS_SV_UHDM_PLUGIN "Enable building and installing Yosys SystemVerilog and UHDM plugins" OFF)
 
 set(VTR_VERSION_MAJOR 8)
 set(VTR_VERSION_MINOR 1)
@@ -116,6 +122,11 @@ endif()
 #
 # Build type flags
 #
+
+set(EXTRA_FLAGS "")
+if(VPR_ENABLE_INTERCHANGE)
+    set(EXTRA_FLAGS "-lz")
+endif()
 
 if(NOT MSVC)
     # for GCC and Clang
@@ -236,7 +247,7 @@ set(SANITIZE_FLAGS "")
 if(VTR_ENABLE_SANITIZE)
     #Enable sanitizers
     # -fuse-ld=gold force the gold linker to be used (required for sanitizers, but not enabled by default on some systems)
-    set(SANITIZE_FLAGS "-g -fsanitize=address -fsanitize=leak -fsanitize=undefined -fuse-ld=gold")
+    set(SANITIZE_FLAGS "-g -fsanitize=address -fsanitize=leak -fsanitize=undefined -fuse-ld=gold -static-libasan")
     message(STATUS "SANITIZE_FLAGS: ${SANITIZE_FLAGS}")
 endif()
 
@@ -291,7 +302,7 @@ endif()
 # Set final flags
 #
 separate_arguments(
-    ADDITIONAL_FLAGS UNIX_COMMAND "${SANITIZE_FLAGS} ${PROFILING_FLAGS} ${COVERAGE_FLAGS} ${LOGGING_FLAGS} ${COLORED_COMPILE}"
+    ADDITIONAL_FLAGS UNIX_COMMAND "${SANITIZE_FLAGS} ${PROFILING_FLAGS} ${COVERAGE_FLAGS} ${LOGGING_FLAGS} ${COLORED_COMPILE} ${EXTRA_FLAGS}"
     )
 separate_arguments(
     WARN_FLAGS UNIX_COMMAND "${WARN_FLAGS}"
@@ -313,6 +324,14 @@ add_custom_target(get_ispd_benchmarks
     COMMAND ./vtr_flow/scripts/download_ispd.py --vtr_flow_dir ./vtr_flow
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Downloading (~50MB) and extracting Titan benchmarks (~0.5GB) into VTR source tree.")
+
+#
+# SymbiFlow Benchmarks
+#
+add_custom_target(get_symbiflow_benchmarks
+    COMMAND ./vtr_flow/scripts/download_symbiflow.py --vtr_flow_dir ./vtr_flow
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Downloading (~100MB) and extracting SymbiFlow architectures (~2.7GB) into VTR source tree.")
 
 #
 # Unit Testing
@@ -354,7 +373,6 @@ if (VPR_USE_EZGL STREQUAL "auto")
     endif()
 endif()
 
-
 #Add the various sub-projects
 if(${WITH_ABC})
     add_subdirectory(abc)
@@ -370,11 +388,22 @@ if(${WITH_ABC})
     add_subdirectory(ace2)
 endif()
 add_subdirectory(utils)
-if(${WITH_ODIN})
+# define cmake params to compile Yosys
+if(${WITH_YOSYS})
+    add_definitions("-D_YOSYS_")
+elseif(${WITH_ODIN})
     add_subdirectory(ODIN_II)
     # blifexplorer depends on odin
     if(${WITH_BLIFEXPLORER})
         add_subdirectory(blifexplorer)
+    endif()
+endif()
+
+# handle cmake params to compile Yosys SystemVerilog/UHDM plugins
+if(${YOSYS_SV_UHDM_PLUGIN})
+    # avoid compiling plugins in case the Yosys frontend is not active
+    if(NOT ${WITH_YOSYS} AND NOT ${ODIN_USE_YOSYS})
+        message(SEND_ERROR "Utilizing SystemVerilog/UHDM plugins requires activating Yosys frontend. Please set either WITH_YOSYS or ODIN_USE_YOSYS on.")
     endif()
 endif()
 
@@ -431,3 +460,9 @@ list(APPEND DIRS_TO_FORMAT_PY "${CMAKE_CURRENT_SOURCE_DIR}/vpr")
 list(APPEND DIRS_TO_FORMAT_PY "${CMAKE_CURRENT_SOURCE_DIR}/vtr_flow")
 
 include(AutoPyFormat)
+
+
+#
+# Python Environment setup
+#
+include(PyEnv)

@@ -22,7 +22,7 @@ BASIC_VERBOSITY = 1
 
 
 def vtr_command_argparser(prog=None):
-    """ Parses the arguments of run_reg_test """
+    """Parses the arguments of run_reg_test"""
 
     description = textwrap.dedent(
         """
@@ -50,14 +50,19 @@ def vtr_command_argparser(prog=None):
     )
 
     parser = argparse.ArgumentParser(
-        prog=prog, description=description, epilog=epilog, formatter_class=RawDefaultHelpFormatter,
+        prog=prog,
+        description=description,
+        epilog=epilog,
+        formatter_class=RawDefaultHelpFormatter,
     )
 
     #
     # Major arguments
     #
     parser.add_argument(
-        "reg_test", nargs="+", help="Regression tests to be run",
+        "reg_test",
+        nargs="+",
+        help="Regression tests to be run",
     )
 
     parser.add_argument(
@@ -75,7 +80,10 @@ def vtr_command_argparser(prog=None):
     )
 
     parser.add_argument(
-        "-parse", default=False, action="store_true", help="Only run the parse tests.",
+        "-parse",
+        default=False,
+        action="store_true",
+        help="Only run the parse tests.",
     )
 
     parser.add_argument(
@@ -92,7 +100,10 @@ def vtr_command_argparser(prog=None):
     )
 
     parser.add_argument(
-        "-skip_qor", default=False, action="store_true", help="Skips running the Qor tests",
+        "-skip_qor",
+        default=False,
+        action="store_true",
+        help="Skips running the Qor tests",
     )
 
     parser.add_argument(
@@ -118,7 +129,10 @@ def vtr_command_argparser(prog=None):
     )
 
     parser.add_argument(
-        "-long_task_names", default=False, action="store_true", help="Display long task names",
+        "-long_task_names",
+        default=False,
+        action="store_true",
+        help="Display long task names",
     )
 
     return parser
@@ -191,7 +205,7 @@ def vtr_command_main(arg_list, prog=None):
 
 
 def display_qor(reg_test):
-    """ Display the qor tests script files to be run outside of this script """
+    """Display the qor tests script files to be run outside of this script"""
     test_dir = paths.regression_tests_path / reg_test
     if not (test_dir / "qor_geomean.txt").is_file():
         print("QoR results do not exist ({}/qor_geomean.txt)".format(str(test_dir)))
@@ -236,7 +250,7 @@ def display_qor(reg_test):
 
 
 def run_odin_test(args, test_name):
-    """ Run ODIN II test with given test name """
+    """Run ODIN II test with given test name"""
     odin_reg_script = [
         str(paths.odin_verify_path),
         "--clean",
@@ -255,12 +269,16 @@ def run_odin_test(args, test_name):
         odin_reg_script[-1] += "task/arch_sweep"
     elif test_name == "odin_reg_operators":
         odin_reg_script[-1] += "task/operators"
-    elif test_name == "odin_reg_large":
-        odin_reg_script[-1] += "task/large"
     elif test_name == "odin_reg":
         odin_reg_script[-1] += "task/full"
-    elif test_name == "odin_reg_micro":
+    elif test_name == "odin_reg_basic":
         odin_reg_script[-1] += "suite/light_suite"
+    elif test_name == "odin_tech_basic":
+        odin_reg_script[-1] += "suite/yosys+odin/techmap_lightsuite"
+    elif test_name == "odin_tech_strong":
+        odin_reg_script[-1] += "suite/yosys+odin/techmap_heavysuite"
+    elif test_name == "odin_reg_strong":
+        odin_reg_script[-1] += "suite/heavy_suite"
     else:
         raise IOError("Test does not exist: {}".format(test_name))
 
@@ -280,7 +298,7 @@ def run_odin_test(args, test_name):
 
 
 def collect_task_list(reg_test):
-    """ create a list of task files """
+    """create a list of task files"""
     task_list_filepath = paths.tasks_path / "regression_tests" / reg_test / "task_list.txt"
     if not task_list_filepath.is_file():
         raise IOError("Test does not exist: {}".format(reg_test))
@@ -302,7 +320,7 @@ def run_tasks(args, task_lists):
 
 
 def parse_single_test(task_lists, check=True, calculate=True, create=False):
-    """ parse the test results """
+    """parse the test results"""
     vtr_task_cmd = ["-l"] + [task_lists]
     if check:
         vtr_task_cmd += ["-check_golden"]
@@ -316,7 +334,7 @@ def parse_single_test(task_lists, check=True, calculate=True, create=False):
 
 
 def print_header(heading, divider="=", print_first_line=True):
-    """ Print heading formated in the center of two lines """
+    """Print heading formated in the center of two lines"""
     if print_first_line:
         print(divider * len(heading) * 2)
     print(" " * int((len(heading) / 2)), end="")

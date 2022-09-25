@@ -66,7 +66,7 @@ static std::pair<float, int> run_dijkstra(RRNodeId start_node,
 
 std::pair<float, float> ExtendedMapLookahead::get_src_opin_cost(RRNodeId from_node, int delta_x, int delta_y, const t_conn_cost_params& params) const {
     auto& device_ctx = g_vpr_ctx.device();
-    auto& rr_graph = device_ctx.rr_nodes;
+    auto& rr_graph = device_ctx.rr_graph;
 
     //When estimating costs from a SOURCE/OPIN we look-up to find which wire types (and the
     //cost to reach them) in f_src_opin_delays. Once we know what wire types are
@@ -135,13 +135,13 @@ std::pair<float, float> ExtendedMapLookahead::get_src_opin_cost(RRNodeId from_no
     VTR_ASSERT_SAFE_MSG(false,
                         vtr::string_fmt("Lookahead failed to estimate cost from %s: %s",
                                         rr_node_arch_name(size_t(from_node)).c_str(),
-                                        describe_rr_node(size_t(from_node)).c_str())
+                                        describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, size_t(from_node), is_flat_).c_str())
                             .c_str());
 }
 
 float ExtendedMapLookahead::get_chan_ipin_delays(RRNodeId to_node) const {
     auto& device_ctx = g_vpr_ctx.device();
-    auto& rr_graph = device_ctx.rr_nodes;
+    auto& rr_graph = device_ctx.rr_graph;
 
     e_rr_type to_type = rr_graph.node_type(to_node);
     VTR_ASSERT(to_type == SINK || to_type == IPIN);
@@ -175,7 +175,7 @@ std::pair<float, float> ExtendedMapLookahead::get_expected_delay_and_cong(RRNode
     }
 
     auto& device_ctx = g_vpr_ctx.device();
-    auto& rr_graph = device_ctx.rr_nodes;
+    const auto& rr_graph = device_ctx.rr_graph;
 
     int from_x = rr_graph.node_xlow(from_node);
     int from_y = rr_graph.node_ylow(from_node);
@@ -201,8 +201,8 @@ std::pair<float, float> ExtendedMapLookahead::get_expected_delay_and_cong(RRNode
         // there is no route
         VTR_LOGV_DEBUG(f_router_debug,
                        "Not connected %d (%s, %d) -> %d (%s)\n",
-                       size_t(from_node), device_ctx.rr_nodes[size_t(from_node)].type_string(), from_seg_index,
-                       size_t(to_node), device_ctx.rr_nodes[size_t(to_node)].type_string());
+                       size_t(from_node), rr_graph.node_type_string(from_node), from_seg_index,
+                       size_t(to_node), rr_graph.node_type_string(to_node));
         float infinity = std::numeric_limits<float>::infinity();
         return std::make_pair(infinity, infinity);
     }
@@ -229,7 +229,7 @@ std::pair<float, float> ExtendedMapLookahead::get_expected_delay_and_cong(RRNode
     float expected_cost = expected_delay_cost + expected_cong_cost;
 
     VTR_LOGV_DEBUG(f_router_debug, "Requested lookahead from node %d to %d\n", size_t(from_node), size_t(to_node));
-    const std::string& segment_name = device_ctx.rr_segments[from_seg_index].name;
+    const std::string& segment_name = rr_graph.rr_segments(RRSegmentId(from_seg_index)).name;
     VTR_LOGV_DEBUG(f_router_debug, "Lookahead returned %s (%d) with distance (%d, %d)\n",
                    segment_name.c_str(), from_seg_index,
                    dx, dy);
@@ -264,7 +264,7 @@ bool ExtendedMapLookahead::add_paths(RRNodeId start_node,
                                      const std::vector<util::Search_Path>& paths,
                                      util::RoutingCosts* routing_costs) {
     auto& device_ctx = g_vpr_ctx.device();
-    auto& rr_graph = device_ctx.rr_nodes;
+    auto& rr_graph = device_ctx.rr_graph;
 
     RRNodeId node = current.rr_node;
 
@@ -292,8 +292,7 @@ bool ExtendedMapLookahead::add_paths(RRNodeId start_node,
     auto parent = start_node;
     for (auto it = path.rbegin(); it != path.rend(); it++) {
         RRNodeId this_node(*it);
-        auto& here = device_ctx.rr_nodes[*it];
-        int seg_index = device_ctx.rr_indexed_data[here.cost_index()].seg_index;
+        int seg_index = device_ctx.rr_indexed_data[rr_graph.node_cost_index(this_node)].seg_index;
 
         int from_x = rr_graph.node_xlow(this_node);
         int from_y = rr_graph.node_ylow(this_node);
@@ -312,8 +311,7 @@ bool ExtendedMapLookahead::add_paths(RRNodeId start_node,
             delta};
 
         if (size_t(this_node) != size_t(start_node)) {
-            auto& parent_node = device_ctx.rr_nodes[size_t(parent)];
-            start_to_here = Entry(this_node, parent_node.edge_switch(paths[*it].edge), &start_to_here);
+            start_to_here = Entry(this_node, rr_graph.edge_switch(RRNodeId(parent), paths[*it].edge), &start_to_here);
             parent = this_node;
         }
 
@@ -361,6 +359,7 @@ std::pair<float, int> ExtendedMapLookahead::run_dijkstra(RRNodeId start_node,
                                                          std::vector<util::Search_Path>* paths,
                                                          util::RoutingCosts* routing_costs) {
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
     int path_count = 0;
 
     /* a list of boolean flags (one for each rr node) to figure out if a
@@ -393,15 +392,14 @@ std::pair<float, int> ExtendedMapLookahead::run_dijkstra(RRNodeId start_node,
         }
 
         /* if this node is an ipin record its congestion/delay in the routing_cost_map */
-        if (device_ctx.rr_nodes[size_t(node)].type() == IPIN) {
+        if (rr_graph.node_type(node) == IPIN) {
             // the last cost should be the highest
             max_cost = current.cost();
 
             path_count++;
             this->add_paths<Entry>(start_node, current, *paths, routing_costs);
         } else {
-            util::expand_dijkstra_neighbours(device_ctx.rr_nodes,
-                                             current, paths, node_expanded, &pq);
+            util::expand_dijkstra_neighbours(rr_graph, current, paths, node_expanded, &pq);
             (*node_expanded)[size_t(node)] = true;
         }
     }
@@ -440,8 +438,8 @@ void ExtendedMapLookahead::compute(const std::vector<t_segment_inf>& segment_inf
         util::RoutingCosts delay_costs;
         util::RoutingCosts base_costs;
         int total_path_count = 0;
-        std::vector<bool> node_expanded(device_ctx.rr_nodes.size());
-        std::vector<util::Search_Path> paths(device_ctx.rr_nodes.size());
+        std::vector<bool> node_expanded(device_ctx.rr_graph.num_nodes());
+        std::vector<util::Search_Path> paths(device_ctx.rr_graph.num_nodes());
 
         // Each point in a sample region contains a set of nodes. Each node becomes a starting node
         // for the dijkstra expansions, and different paths are explored to reach different locations.
@@ -572,8 +570,9 @@ float ExtendedMapLookahead::get_expected_cost(
     const t_conn_cost_params& params,
     float R_upstream) const {
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
 
-    t_rr_type rr_type = device_ctx.rr_nodes.node_type(current_node);
+    t_rr_type rr_type = rr_graph.node_type(current_node);
 
     if (rr_type == CHANX || rr_type == CHANY || rr_type == SOURCE || rr_type == OPIN) {
         float delay_cost, cong_cost;
@@ -584,7 +583,7 @@ float ExtendedMapLookahead::get_expected_cost(
     } else if (rr_type == IPIN) { /* Change if you're allowing route-throughs */
         // This is to return only the cost between the IPIN and SINK. No need to
         // query the cost map, as the routing of this connection is almost done.
-        return device_ctx.rr_indexed_data[SINK_COST_INDEX].base_cost;
+        return device_ctx.rr_indexed_data[RRIndexedDataId(SINK_COST_INDEX)].base_cost;
     } else { /* Change this if you want to investigate route-throughs */
         return 0.;
     }

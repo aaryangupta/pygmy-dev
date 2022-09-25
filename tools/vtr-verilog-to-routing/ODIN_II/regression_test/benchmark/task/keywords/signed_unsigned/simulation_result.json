@@ -1,35 +1,35 @@
 {
     "signed_unsigned/signed_to_signed/no_arch": {
         "test_name": "signed_unsigned/signed_to_signed/no_arch",
-        "blif": "signed_to_signed.blif",
+        "generated_blif": "signed_to_signed_generated.blif",
         "exit": 134,
         "errors": [
-            "[OUTPUT_BLIF] Vector files differ."
+            "[SIMULATION] Vector files differ."
         ],
         "warnings": [
-            "[OUTPUT_BLIF] Vector 0 mismatch:",
-            "[OUTPUT_BLIF] Vector 1 mismatch:",
-            "[OUTPUT_BLIF] Vector 4 mismatch:",
-            "[OUTPUT_BLIF] Vector 5 mismatch:"
+            "[SIMULATION] Vector 0 mismatch:",
+            "[SIMULATION] Vector 1 mismatch:",
+            "[SIMULATION] Vector 4 mismatch:",
+            "[SIMULATION] Vector 5 mismatch:"
         ]
     },
     "signed_unsigned/signed_to_unsigned/no_arch": {
         "test_name": "signed_unsigned/signed_to_unsigned/no_arch",
-        "blif": "signed_to_unsigned.blif",
+        "generated_blif": "signed_to_unsigned_generated.blif",
         "exit": 134,
         "errors": [
-            "[OUTPUT_BLIF] Vector files differ."
+            "[SIMULATION] Vector files differ."
         ],
         "warnings": [
-            "[OUTPUT_BLIF] Vector 0 mismatch:",
-            "[OUTPUT_BLIF] Vector 1 mismatch:",
-            "[OUTPUT_BLIF] Vector 4 mismatch:",
-            "[OUTPUT_BLIF] Vector 5 mismatch:"
+            "[SIMULATION] Vector 0 mismatch:",
+            "[SIMULATION] Vector 1 mismatch:",
+            "[SIMULATION] Vector 4 mismatch:",
+            "[SIMULATION] Vector 5 mismatch:"
         ]
     },
     "signed_unsigned/unsigned_to_signed/no_arch": {
         "test_name": "signed_unsigned/unsigned_to_signed/no_arch",
-        "blif": "unsigned_to_signed.blif",
+        "generated_blif": "unsigned_to_signed_generated.blif",
         "max_rss(MiB)": 29.8,
         "exec_time(ms)": 3.9,
         "simulation_time(ms)": 0.7,
@@ -44,7 +44,7 @@
     },
     "signed_unsigned/unsigned_to_unsigned/no_arch": {
         "test_name": "signed_unsigned/unsigned_to_unsigned/no_arch",
-        "blif": "unsigned_to_unsigned.blif",
+        "generated_blif": "unsigned_to_unsigned_generated.blif",
         "max_rss(MiB)": 30.2,
         "exec_time(ms)": 3.3,
         "simulation_time(ms)": 0.5,
@@ -60,7 +60,7 @@
     "DEFAULT": {
         "test_name": "n/a",
         "architecture": "n/a",
-        "blif": "n/a",
+        "generated_blif": "n/a",
         "exit": 0,
         "leaks": 0,
         "errors": [],

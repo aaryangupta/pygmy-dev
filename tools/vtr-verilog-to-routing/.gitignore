@@ -12,9 +12,10 @@ bin/
 CMakeCache.txt
 CMakeFiles
 build
+Yosys
 
 #
-#VTR Tasks
+#VTR Flow/Tasks
 #
 vtr_flow/tasks/**/run[0-9]*
 vtr_flow/tasks/**/run_latest
@@ -22,6 +23,7 @@ vtr_flow/tasks/**/latest
 vtr_flow/tasks/**/qor_geomean.txt
 vtr_flow/tasks/**/task_summary/
 quick_test/*
+temp/
 
 #
 # Titan benchmarks
@@ -45,6 +47,17 @@ vtr_flow/benchmarks/titan_other_blif/*.sdc
 #
 ispd_benchmarks_vtr*.tar.gz
 vtr_flow/benchmarks/ispd_blif/*.blif
+
+#
+# SymbiFlow benchmarks
+#
+#   We ignore the SymbiFlow netlists and architectures because of thier large size.
+#
+*symbiflow*.tar.xz
+vtr_flow/arch/symbiflow/*.bin
+vtr_flow/arch/symbiflow/*.xml
+vtr_flow/benchmarks/symbiflow/*.eblif
+vtr_flow/benchmarks/symbiflow/sdc/*.sdc
 
 #
 # Cloud9 Directory
@@ -89,9 +102,20 @@ ODIN_II/usefull_tools/**/track_completed
 *.a
 
 #
+#Yosys exec dir
+#
+Yosys
+
+#
+#ArchFPGA exec dir
+#
+ArchFPGA
+
+#
 #Python
 #
 *.pyc
+/.venv
 
 #
 #Vim
@@ -119,3 +143,12 @@ tags
 #
 .vscode
 .history
+#eclipse project
+.project
+
+#
+# CLION
+#
+.idea
+cmake-build-debug
+/.metadata/

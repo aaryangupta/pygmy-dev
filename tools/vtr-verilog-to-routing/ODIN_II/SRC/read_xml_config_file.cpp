@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "odin_types.h"
+#include "odin_util.h"
 #include "odin_globals.h"
 #include "read_xml_config_file.h"
 #include "read_xml_util.h"
@@ -38,11 +39,13 @@ using namespace pugiutil;
 config_t configuration;
 char empty_string[] = "";
 
-void read_verilog_files(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data);
+void read_inputs(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data);
 void read_outputs(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data);
 void read_debug_switches(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data);
 void read_optimizations(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data);
 void set_default_optimization_settings(config_t* config);
+
+extern HardSoftLogicMixer* mixer;
 
 /*-------------------------------------------------------------------------
  * (function: read_config_file)
@@ -65,8 +68,8 @@ void read_config_file(const char* file_name) {
         config = get_single_child(doc, "config", loc_data);
 
         /* Process the verilog files */
-        next = get_single_child(config, "verilog_files", loc_data);
-        read_verilog_files(next, &configuration, loc_data);
+        next = get_single_child(config, "inputs", loc_data);
+        read_inputs(next, &configuration, loc_data);
 
         /* Process the output */
         next = get_single_child(config, "output", loc_data);
@@ -82,8 +85,9 @@ void read_config_file(const char* file_name) {
         /* Process the debug switches */
         next = get_single_child(config, "debug_outputs", loc_data);
         read_debug_switches(next, &configuration, loc_data);
+
     } catch (XmlError& e) {
-        printf("error: could not parse xml configuration file '%s'\n", file_name);
+        printf("error: could not parse xml configuration file '%s': %s\n", file_name, e.what());
         return;
     }
 
@@ -94,13 +98,17 @@ void read_config_file(const char* file_name) {
 /*-------------------------------------------------------------------------
  * (function: read_verilog_files)
  *-----------------------------------------------------------------------*/
-void read_verilog_files(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data) {
+void read_inputs(pugi::xml_node a_node, config_t* config, const pugiutil::loc_data& loc_data) {
     pugi::xml_node child;
     pugi::xml_node junk;
 
-    child = get_first_child(a_node, "verilog_file", loc_data, OPTIONAL);
+    child = get_single_child(a_node, "input_type", loc_data, OPTIONAL);
+    if (child != NULL) {
+        config->input_file_type = file_type_strmap.find(string_to_lower(child.child_value()))->second;
+    }
+
+    child = get_first_child(a_node, "input_path_and_name", loc_data, OPTIONAL);
     while (child != NULL) {
-        config->is_verilog_input = true;
         config->list_of_file_names.push_back(child.child_value());
         child = child.next_sibling(child.name());
     }
@@ -115,7 +123,7 @@ void read_outputs(pugi::xml_node a_node, config_t* config, const pugiutil::loc_d
 
     child = get_single_child(a_node, "output_type", loc_data, OPTIONAL);
     if (child != NULL) {
-        config->output_type = child.child_value();
+        config->output_file_type = file_type_strmap.find(string_to_lower(child.child_value()))->second;
     }
 
     child = get_single_child(a_node, "output_path_and_name", loc_data, OPTIONAL);
@@ -215,6 +223,27 @@ void read_optimizations(pugi::xml_node a_node, config_t* config, const pugiutil:
             config->split_hard_multiplier = atoi(prop);
         } else /* Default: use fractured hard multiply size */
             config->split_hard_multiplier = 1;
+    }
+
+    child = get_single_child(a_node, "mix_soft_hard_blocks", loc_data, OPTIONAL);
+    if (child != NULL) {
+        prop = get_attribute(child, "mults_ratio", loc_data, OPTIONAL).as_string(NULL);
+        if (prop != NULL) {
+            float ratio = atof(prop);
+            if (ratio >= 0.0 && ratio <= 1.0) {
+                delete mixer->_opts[MULTIPLY];
+                mixer->_opts[MULTIPLY] = new MultsOpt(ratio);
+            }
+        }
+
+        prop = get_attribute(child, "exact_mults", loc_data, OPTIONAL).as_string(NULL);
+        if (prop != NULL) {
+            int exact = atoi(prop);
+            if (exact >= 0) {
+                delete mixer->_opts[MULTIPLY];
+                mixer->_opts[MULTIPLY] = new MultsOpt(exact);
+            }
+        }
     }
 
     child = get_single_child(a_node, "memory", loc_data, OPTIONAL);

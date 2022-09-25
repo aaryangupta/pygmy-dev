@@ -72,7 +72,7 @@ bool try_breadth_first_route(const t_router_opts& router_opts) {
     BinaryHeap heap;
     heap.init_heap(device_ctx.grid);
 
-    OveruseInfo overuse_info(device_ctx.rr_nodes.size());
+    OveruseInfo overuse_info(device_ctx.rr_graph.num_nodes());
 
     for (itry = 1; itry <= router_opts.max_router_iterations; itry++) {
         VTR_LOG("Routing Iteration %d\n", itry);
@@ -300,10 +300,11 @@ static void breadth_first_expand_trace_segment(BinaryHeap& heap, t_trace* start_
     int inode, sink_node, last_ipin_node;
 
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.mutable_routing();
 
     tptr = start_ptr;
-    if (tptr != nullptr && device_ctx.rr_nodes[tptr->index].type() == SINK) {
+    if (tptr != nullptr && rr_graph.node_type(RRNodeId(tptr->index)) == SINK) {
         /* During logical equivalence case, only use one opin */
         tptr = tptr->next;
     }
@@ -345,7 +346,7 @@ static void breadth_first_expand_trace_segment(BinaryHeap& heap, t_trace* start_
                              inode, 0., NO_PREVIOUS, RREdgeId::INVALID(),
                              OPEN, OPEN);
 
-            if (device_ctx.rr_nodes[inode].type() == IPIN)
+            if (rr_graph.node_type(RRNodeId(inode)) == IPIN)
                 last_ipin_node = inode;
 
             tptr = next_ptr;
@@ -383,16 +384,17 @@ static void breadth_first_expand_neighbours(BinaryHeap& heap, int inode, float p
      * heap.  pcost is the path_cost to get to inode.                           */
 
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
-    for (RREdgeId from_edge : device_ctx.rr_nodes.edge_range(RRNodeId(inode))) {
-        RRNodeId to_node = device_ctx.rr_nodes.edge_sink_node(from_edge);
+    for (RREdgeId from_edge : rr_graph.edge_range(RRNodeId(inode))) {
+        RRNodeId to_node = device_ctx.rr_graph.rr_nodes().edge_sink_node(from_edge);
 
-        if (device_ctx.rr_nodes.node_xhigh(to_node) < route_ctx.route_bb[net_id].xmin
-            || device_ctx.rr_nodes.node_xlow(to_node) > route_ctx.route_bb[net_id].xmax
-            || device_ctx.rr_nodes.node_yhigh(to_node) < route_ctx.route_bb[net_id].ymin
-            || device_ctx.rr_nodes.node_ylow(to_node) > route_ctx.route_bb[net_id].ymax)
-            continue; /* Node is outside (expanded) bounding box. */
+        vtr::Point<int> lower_left(route_ctx.route_bb[net_id].xmin, route_ctx.route_bb[net_id].ymin);
+        vtr::Point<int> upper_right(route_ctx.route_bb[net_id].xmax, route_ctx.route_bb[net_id].ymax);
+        vtr::Rect<int> bounding_box(lower_left, upper_right);
+
+        if (!rr_graph.node_is_inside_bounding_box(to_node, bounding_box)) continue;
 
         breadth_first_add_to_heap(heap, pcost, bend_cost, inode, to_node, from_edge, pres_fac);
     }
@@ -426,12 +428,13 @@ static void breadth_first_add_to_heap(BinaryHeap& heap, const float path_cost, c
 
 static float evaluate_node_cost(const float prev_path_cost, const float bend_cost, const int from_node, const int to_node, float pres_fac) {
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
 
     float tot_cost = prev_path_cost + get_rr_cong_cost(to_node, pres_fac);
 
     if (bend_cost != 0.) {
-        t_rr_type from_type = device_ctx.rr_nodes[from_node].type();
-        t_rr_type to_type = device_ctx.rr_nodes[to_node].type();
+        t_rr_type from_type = rr_graph.node_type(RRNodeId(from_node));
+        t_rr_type to_type = rr_graph.node_type(RRNodeId(to_node));
         if ((from_type == CHANX && to_type == CHANY)
             || (from_type == CHANY && to_type == CHANX))
             tot_cost += bend_cost;

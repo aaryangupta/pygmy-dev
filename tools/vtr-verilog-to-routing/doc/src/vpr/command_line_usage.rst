@@ -119,6 +119,7 @@ Graphics Options
 .. option:: --graphics_commands <string>
 
     A set of semi-colon seperated graphics commands.
+    Graphics commands must be surrounded by quotation marks (e.g. --graphics_commands "save_graphics place.png;")
 
     * save_graphics <file>
          Saves graphics to the specified file (.png/.pdf/
@@ -152,14 +153,14 @@ Graphics Options
 
     .. code-block:: none
 
-        save_graphics place.png; \
+        "save_graphics place.png; \
         set_nets 1; save_graphics nets1.png;\
         set_nets 2; save_graphics nets2.png; set_nets 0;\
         set_cpd 1; save_graphics cpd1.png; \
         set_cpd 3; save_graphics cpd3.png; set_cpd 0; \
         set_routing_util 5; save_graphics routing_util5.png; \
         set_routing_util 0; \
-        set_congestion 1; save_graphics congestion1.png;
+        set_congestion 1; save_graphics congestion1.png;"
 
     The above toggles various graphics settings (e.g. drawing nets, drawing critical path) and then saves the results to .png files.
     
@@ -282,6 +283,12 @@ General Options
     .. warning:: Exercise extreme caution when turning this option off -- be sure you completely understand why the issue is being flagged, and why it is OK to treat as a warning instead of an error.
     
     **Default:** ``on``
+    
+.. option:: --terminate_if_timing_fails {on, off}
+
+    Controls whether VPR should terminate if timing is not met after routing. 
+    
+    **Default:** ``off``
 
 .. _filename_options:
 
@@ -626,6 +633,12 @@ For people not working on CAD, you can probably leave all the options to their d
 
     **Default:** ``2``
 
+.. option:: --write_block_usage <file>
+
+    Writes out to the file under path <file> cluster-level block usage summary in machine
+    readable (JSON or XML) or human readable (TXT) format. Format is selected
+    based on the extension of <file>.
+
 .. _placer_options:
 
 Placer Options
@@ -652,15 +665,26 @@ If any of init_t, exit_t or alpha_t is specified, the user schedule, with a fixe
     **Default:** ``on`` if timing-driven placement is specified, ``off`` otherwise.
 
 .. option:: --inner_num <float>
+    
+    The number of moves attempted at each temperature in placement can be calculated from inner_num scaled with circuit size or device-circuit size as specified in ``place_effort_scaling``. 
 
-    The number of moves attempted at each temperature is inner_num *  num_blocks^(4/3) in the circuit.
-    The number of blocks in a circuit is the number of pads plus the number of clbs.
     Changing inner_num is the best way to change the speed/quality tradeoff of the placer, as it leaves the highly-efficient automatic annealing schedule on and simply changes the number of moves per temperature.
 
     Specifying ``-inner_num 10`` will slow the placer by a factor of 10 while typically improving placement quality only by 10% or less (depends on the architecture).
     Hence users more concerned with quality than CPU time may find this a more appropriate value of inner_num.
 
-    **Default:** ``1.0``
+    **Default:** ``0.5``
+
+.. option:: --place_effort_scaling {circuit | device_circuit}
+
+    Controls how the number of placer moves level scales with circuit and device size:
+
+    * ``circuit``: The number of moves attempted at each temperature is inner_num *  num_blocks^(4/3) in the circuit.
+    * ``device_circuit``: The number of moves attempted at each temperature is inner_num * grid_size^(2/3) * num_blocks^(4/3) in the circuit.
+
+    The number of blocks in a circuit is the number of pads plus the number of clbs.
+
+    **Default:** ``circuit``
 
 .. option:: --init_t <float>
 
@@ -1035,6 +1059,17 @@ VPR uses a negotiated congestion algorithm (based on Pathfinder) to perform rout
 
     **Default:** ``off``
 
+.. option:: --write_timing_summary <file>
+
+    Writes out to the file under path <file> final timing summary in machine
+    readable (JSON or XML) or human readable (TXT) format. Format is selected
+    based on the extension of <file>. The summary consists of parameters:
+
+    * `cpd` - Final critical path delay (least slack) [ns]
+    * `fmax` - Maximal frequency of the implemented circuit [MHz]
+    * `swns` - setup Worst Negative Slack (sWNS) [ns]
+    * `stns` - Setup Total Negative Slack (sTNS) [ns]
+
 .. _timing_driven_router_options:
 
 Timing-Driven Router Options
@@ -1236,6 +1271,34 @@ Analysis Options
     Furthermore to perform simulation on that circuit the Verilog description of that new primitive must be appended to the primitives.v file as a separate module.
 
     **Default:** ``off``
+
+.. option:: --gen_post_implementation_merged_netlist { on | off }
+
+    This option is based on ``--gen_post_synthesis_netlist``.
+    The difference is that ``--gen_post_implementation_merged_netlist`` generates a single verilog file with merged top module multi-bit ports of the implemented circuit.
+    The name of the file is ``<basename>_merged_post_implementation.v``
+
+    **Default:** ``off``
+
+.. option:: --post_synth_netlist_unconn_inputs { unconnected | nets | gnd | vcc }
+
+    Controls how unconnected input cell ports are handled in the post-synthesis netlist
+
+     * unconnected: leave unconnected
+     * nets: connect each unconnected input pin to its own separate undriven net named: ``__vpr__unconn<ID>``, where ``<ID>`` is index assigned to this occurrence of unconnected port in design
+     * gnd: tie all to ground (``1'b0``)
+     * vcc: tie all to VCC (``1'b1``)
+
+    **Default:** ``unconnected``
+
+.. option:: --post_synth_netlist_unconn_outputs { unconnected | nets }
+
+    Controls how unconnected output cell ports are handled in the post-synthesis netlist
+
+     * unconnected: leave unconnected
+     * nets: connect each unconnected output pin to its own separate undriven net named: ``__vpr__unconn<ID>``, where ``<ID>`` is index assigned to this occurrence of unconnected port in design
+
+    **Default:** ``unconnected``
 
 .. option:: --timing_report_npaths <int>
 

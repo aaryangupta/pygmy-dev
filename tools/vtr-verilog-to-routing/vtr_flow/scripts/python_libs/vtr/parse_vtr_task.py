@@ -1,8 +1,9 @@
+#!/usr/bin/env python3
+
 """
 Parse one or more task provided
 """
 
-#!/usr/bin/env python3
 from pathlib import Path
 from pathlib import PurePath
 import sys
@@ -73,7 +74,10 @@ def vtr_command_argparser(prog=None):
     )
 
     parser = argparse.ArgumentParser(
-        prog=prog, description=description, epilog=epilog, formatter_class=RawDefaultHelpFormatter,
+        prog=prog,
+        description=description,
+        epilog=epilog,
+        formatter_class=RawDefaultHelpFormatter,
     )
 
     #
@@ -224,7 +228,7 @@ def parse_task(config, config_jobs, flow_metrics_basename=FIRST_PARSE_FILE):
 
 
 def parse_files(config_jobs, run_dir, flow_metrics_basename=FIRST_PARSE_FILE):
-    """ Parse the result files from the give jobs """
+    """Parse the result files from the give jobs"""
     task_parse_results_filepath = str(PurePath(run_dir) / flow_metrics_basename)
     with open(task_parse_results_filepath, "w") as out_f:
 
@@ -258,7 +262,7 @@ def parse_files(config_jobs, run_dir, flow_metrics_basename=FIRST_PARSE_FILE):
 
 
 def create_golden_results_for_tasks(configs):
-    """ Runs create_golden_results_for_task on all of the give configuration """
+    """Runs create_golden_results_for_task on all of the give configuration"""
 
     for config in configs:
         create_golden_results_for_task(config)
@@ -277,7 +281,7 @@ def create_golden_results_for_task(config):
 
 
 def check_golden_results_for_tasks(configs):
-    """ runs check_golden_results_for_task on all the input configurations """
+    """runs check_golden_results_for_task on all the input configurations"""
     num_qor_failures = 0
 
     print("\nCalculating QoR results...")
@@ -323,7 +327,9 @@ def check_golden_results_for_task(config):
                 PurePath(config.config_dir).joinpath("golden_results.txt")
             )
             num_qor_failures = check_two_files(
-                config, task_results_filepath, golden_results_filepath,
+                config,
+                task_results_filepath,
+                golden_results_filepath,
             )
         pretty_print_table(task_results_filepath)
 
@@ -341,7 +347,7 @@ def check_two_files(
     first_name="task",
     second_name="golden",
 ):
-    """ Compare two files results """
+    """Compare two files results"""
     first_results = load_parse_results(first_results_filepath)
     second_results = load_parse_results(second_results_filepath)
     # Verify that the architecture and circuit are specified
@@ -368,14 +374,20 @@ def check_two_files(
     pass_requirements = load_pass_requirements(pass_req_filepath)
 
     for metric in pass_requirements.keys():
-        for ((arch, circuit, script_params), result,) in first_results.all_metrics().items():
+        for (
+            (arch, circuit, script_params),
+            result,
+        ) in first_results.all_metrics().items():
             if metric not in result:
                 raise InspectError(
                     "Required metric '{}' missing from {} results".format(metric, first_name),
                     first_results_filepath,
                 )
 
-        for ((arch, circuit, script_params), result,) in second_results.all_metrics().items():
+        for (
+            (arch, circuit, script_params),
+            result,
+        ) in second_results.all_metrics().items():
             if metric not in result:
                 raise InspectError(
                     "Required metric '{}' missing from {} results".format(metric, second_name),
@@ -449,7 +461,7 @@ def check_two_files(
 
 
 def summarize_qor(configs):
-    """ Summarize the Qor results """
+    """Summarize the Qor results"""
 
     first = True
     task_path = Path(configs[0].config_dir).parent
@@ -471,7 +483,7 @@ def summarize_qor(configs):
 
 
 def calc_geomean(args, configs):
-    """ caclulate and ouput the geomean values to the geomean file """
+    """caclulate and ouput the geomean values to the geomean file"""
     first = False
     task_path = Path(configs[0].config_dir).parent
     if len(configs) > 1 or (task_path.parent / "task_list.txt").is_file():
@@ -496,7 +508,9 @@ def calc_geomean(args, configs):
                 first = False
             lines = summary.readlines()
             print(
-                get_latest_run_number(str(Path(configs[0].config_dir).parent)), file=out, end="\t",
+                get_latest_run_number(str(Path(configs[0].config_dir).parent)),
+                file=out,
+                end="\t",
             )
             for index in range(len(params)):
                 geo_mean = 1
@@ -510,14 +524,16 @@ def calc_geomean(args, configs):
                     print(geo_mean, file=out, end="\t")
                 else:
                     print(
-                        previous_value if previous_value is not None else "-1", file=out, end="\t",
+                        previous_value if previous_value is not None else "-1",
+                        file=out,
+                        end="\t",
                     )
         print(datetime.date(datetime.now()), file=out, end="\t")
         print(args.revision, file=out)
 
 
 def calculate_individual_geo_mean(lines, index, geo_mean, num):
-    """ Calculate an individual line of parse results goe_mean """
+    """Calculate an individual line of parse results goe_mean"""
     previous_value = None
     for line in lines:
         line = line.split("\t")[4:]
@@ -535,7 +551,7 @@ def calculate_individual_geo_mean(lines, index, geo_mean, num):
 
 
 def find_latest_run_dir(config):
-    """ Find the latest run directory for given configuration """
+    """Find the latest run directory for given configuration"""
     task_dir = find_task_dir(config)
 
     run_dir = get_latest_run_dir(task_dir)
@@ -551,5 +567,5 @@ def find_latest_run_dir(config):
 
 
 if __name__ == "__main__":
-    retval = vtr_command_main(sys.argv[1:])
-    sys.exit(retval)
+    RETVAL = vtr_command_main(sys.argv[1:])
+    sys.exit(RETVAL)

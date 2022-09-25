@@ -13,10 +13,11 @@ class VtrStage(Enum):
         Enum class for the VTR stages\
     """
 
-    odin = 1
-    abc = 2
-    ace = 3
-    vpr = 4
+    ODIN = 1
+    YOSYS = 2
+    ABC = 3
+    ACE = 4
+    VPR = 5
 
     def __le__(self, other):
         if self.__class__ is other.__class__:
@@ -34,15 +35,19 @@ def run(
     architecture_file,
     circuit_file,
     power_tech_file=None,
-    start_stage=VtrStage.odin,
-    end_stage=VtrStage.vpr,
+    include_files=None,
+    start_stage=VtrStage.ODIN,
+    end_stage=VtrStage.VPR,
     command_runner=vtr.CommandRunner(),
     temp_dir=Path("./temp"),
     odin_args=None,
+    yosys_args=None,
     abc_args=None,
     vpr_args=None,
     keep_intermediate_files=True,
     keep_result_files=True,
+    odin_config=None,
+    yosys_script=None,
     min_hard_mult_size=3,
     min_hard_adder_size=1,
     check_equivalent=False,
@@ -101,11 +106,11 @@ def run(
             Determines if the result files are kept or deleted
 
         min_hard_mult_size :
-            Tells ODIN II the minimum multiplier size that should
+            Tells ODIN II/YOSYS the minimum multiplier size that should
             be implemented using hard multiplier (if available)
 
         min_hard_adder_size :
-            Tells ODIN II the minimum adder size that should be implemented
+            Tells ODIN II/YOSYS the minimum adder size that should be implemented
             using hard adder (if available).
 
         check_equivalent  :
@@ -132,8 +137,8 @@ def run(
     #
     vpr_args = OrderedDict() if not vpr_args else vpr_args
     odin_args = OrderedDict() if not odin_args else odin_args
+    yosys_args = OrderedDict() if not yosys_args else yosys_args
     abc_args = OrderedDict() if not abc_args else abc_args
-
     # Verify that files are Paths or convert them to Paths and check that they exist
     architecture_file = vtr.util.verify_file(architecture_file, "Architecture")
     circuit_file = vtr.util.verify_file(circuit_file, "Circuit")
@@ -148,6 +153,7 @@ def run(
 
     # Define useful filenames
     post_odin_netlist = temp_dir / (circuit_file.stem + ".odin" + netlist_ext)
+    post_yosys_netlist = temp_dir / (circuit_file.stem + ".yosys" + netlist_ext)
     post_abc_netlist = temp_dir / (circuit_file.stem + ".abc" + netlist_ext)
     post_ace_netlist = temp_dir / (circuit_file.stem + ".ace" + netlist_ext)
     post_ace_activity_file = temp_dir / (circuit_file.stem + ".act")
@@ -166,22 +172,33 @@ def run(
     shutil.copy(str(circuit_file), str(circuit_copy))
     shutil.copy(str(architecture_file), str(architecture_copy))
 
+    # Check whether any inclulde is specified
+    if include_files:
+        # Verify include files are Paths or convert them to Path + check that they exist
+        # Copy include files to the run directory
+        for include in include_files:
+            include_file = vtr.util.verify_file(include, "Circuit")
+            include_copy = temp_dir / include_file.name
+            shutil.copy(str(include), str(include_copy))
+
     # There are multiple potential paths for the netlist to reach a tool
     # We initialize it here to the user specified circuit and let downstream
     # stages update it
     next_stage_netlist = circuit_copy
 
     #
-    # RTL Elaboration & Synthesis
+    # RTL Elaboration & Synthesis (ODIN-II)
     #
-    if should_run_stage(VtrStage.odin, start_stage, end_stage) and circuit_file.suffixes != ".blif":
+    if should_run_stage(VtrStage.ODIN, start_stage, end_stage) and circuit_file.suffixes != ".blif":
         vtr.odin.run(
             architecture_copy,
             next_stage_netlist,
+            include_files,
             output_netlist=post_odin_netlist,
             command_runner=command_runner,
             temp_dir=temp_dir,
             odin_args=odin_args,
+            odin_config=odin_config,
             min_hard_mult_size=min_hard_mult_size,
             min_hard_adder_size=min_hard_adder_size,
         )
@@ -189,11 +206,31 @@ def run(
         next_stage_netlist = post_odin_netlist
 
         lec_base_netlist = post_odin_netlist if not lec_base_netlist else lec_base_netlist
+    #
+    # RTL Elaboration & Synthesis (YOSYS)
+    #
+    elif should_run_stage(VtrStage.YOSYS, start_stage, end_stage):
+        vtr.yosys.run(
+            architecture_copy,
+            next_stage_netlist,
+            include_files,
+            output_netlist=post_yosys_netlist,
+            command_runner=command_runner,
+            temp_dir=temp_dir,
+            yosys_args=yosys_args,
+            yosys_script=yosys_script,
+            min_hard_mult_size=min_hard_mult_size,
+            min_hard_adder_size=min_hard_adder_size,
+        )
+
+        next_stage_netlist = post_yosys_netlist
+
+        lec_base_netlist = post_yosys_netlist if not lec_base_netlist else lec_base_netlist
 
     #
     # Logic Optimization & Technology Mapping
     #
-    if should_run_stage(VtrStage.abc, start_stage, end_stage):
+    if should_run_stage(VtrStage.ABC, start_stage, end_stage):
         vtr.abc.run(
             architecture_copy,
             next_stage_netlist,
@@ -214,7 +251,7 @@ def run(
     if power_tech_file:
         # The user provided a tech file, so do power analysis
 
-        if should_run_stage(VtrStage.ace, start_stage, end_stage):
+        if should_run_stage(VtrStage.ACE, start_stage, end_stage):
             vtr.ace.run(
                 next_stage_netlist,
                 old_netlist=post_odin_netlist,
@@ -239,7 +276,7 @@ def run(
     #
     # Pack/Place/Route
     #
-    if should_run_stage(VtrStage.vpr, start_stage, end_stage):
+    if should_run_stage(VtrStage.VPR, start_stage, end_stage):
         # Copy the input netlist for input to vpr
         shutil.copyfile(str(next_stage_netlist), str(pre_vpr_netlist))
         route_fixed_w = "route_chan_width" in vpr_args
@@ -337,10 +374,14 @@ def run(
 
 
 def delete_intermediate_files(
-    next_stage_netlist, post_ace_activity_file, keep_result_files, temp_dir, power_tech_file,
+    next_stage_netlist,
+    post_ace_activity_file,
+    keep_result_files,
+    temp_dir,
+    power_tech_file,
 ):
     """
-        delete intermediate files
+    delete intermediate files
     """
     next_stage_netlist.unlink()
     exts = (".xml", ".sdf", ".v")

@@ -1,10 +1,12 @@
-#include "catch.hpp"
+#include "catch2/catch_test_macros.hpp"
+#include "catch2/matchers/catch_matchers_string.hpp"
 
 #include "read_xml_arch_file.h"
 #include "rr_metadata.h"
 #include "rr_graph_writer.h"
 #include "arch_util.h"
 #include "vpr_api.h"
+#include "echo_files.h"
 #include <cstring>
 #include <vector>
 
@@ -112,6 +114,7 @@ TEST_CASE("read_arch_metadata", "[vpr]") {
 }
 
 TEST_CASE("read_rr_graph_metadata", "[vpr]") {
+    /* TODO: All the inode should use RRNodeId */
     int src_inode = -1;
     int sink_inode = -1;
     short switch_id = -1;
@@ -132,23 +135,46 @@ TEST_CASE("read_rr_graph_metadata", "[vpr]") {
         vpr_create_device(vpr_setup, arch);
 
         const auto& device_ctx = g_vpr_ctx.device();
+        auto& mutable_device_ctx = g_vpr_ctx.mutable_device();
+        const auto& rr_graph = device_ctx.rr_graph;
+        auto& rr_graph_builder = mutable_device_ctx.rr_graph_builder;
+        bool echo_enabled = getEchoEnabled() && isEchoFileEnabled(E_ECHO_RR_GRAPH_INDEXED_DATA);
+        const char* echo_file_name = getEchoFileName(E_ECHO_RR_GRAPH_INDEXED_DATA);
 
-        for (int inode = 0; inode < (int)device_ctx.rr_nodes.size(); ++inode) {
-            if ((device_ctx.rr_nodes[inode].type() == CHANX || device_ctx.rr_nodes[inode].type() == CHANY) && device_ctx.rr_nodes[inode].num_edges() > 0) {
-                src_inode = inode;
+        for (const RRNodeId& inode : device_ctx.rr_graph.nodes()) {
+            if ((rr_graph.node_type(inode) == CHANX || rr_graph.node_type(inode) == CHANY) && rr_graph.num_edges(inode) > 0) {
+                src_inode = size_t(inode);
                 break;
             }
         }
 
         REQUIRE(src_inode >= 0);
-        sink_inode = device_ctx.rr_nodes[src_inode].edge_sink_node(0);
-        switch_id = device_ctx.rr_nodes[src_inode].edge_switch(0);
+        sink_inode = size_t(rr_graph.edge_sink_node(RRNodeId(src_inode), 0));
+        switch_id = rr_graph.edge_switch(RRNodeId(src_inode), 0);
 
-        vpr::add_rr_node_metadata(src_inode, vtr::string_view("node"), vtr::string_view("test node"));
-        vpr::add_rr_edge_metadata(src_inode, sink_inode, switch_id, vtr::string_view("edge"), vtr::string_view("test edge"));
+        vpr::add_rr_node_metadata(rr_graph_builder.rr_node_metadata(), src_inode, vtr::string_view("node"), vtr::string_view("test node"), device_ctx.arch);
+        vpr::add_rr_edge_metadata(rr_graph_builder.rr_edge_metadata(), src_inode, sink_inode, switch_id, vtr::string_view("edge"), vtr::string_view("test edge"), device_ctx.arch);
 
-        write_rr_graph(kRrGraphFile);
+        write_rr_graph(&mutable_device_ctx.rr_graph_builder,
+                       &mutable_device_ctx.rr_graph,
+                       device_ctx.physical_tile_types,
+                       &mutable_device_ctx.rr_indexed_data,
+                       &mutable_device_ctx.rr_rc_data,
+                       device_ctx.grid,
+                       device_ctx.arch_switch_inf,
+                       device_ctx.arch,
+                       &mutable_device_ctx.chan_width,
+                       device_ctx.num_arch_switches,
+                       kRrGraphFile,
+                       device_ctx.virtual_clock_network_root_idx,
+                       echo_enabled,
+                       echo_file_name,
+                       false);
         vpr_free_all(arch, vpr_setup);
+
+        auto& atom_ctx = g_vpr_ctx.mutable_atom();
+        free_pack_molecules(atom_ctx.list_of_pack_molecules.release());
+        atom_ctx.atom_molecules.clear();
     }
 
     REQUIRE(src_inode != -1);
@@ -180,18 +206,18 @@ TEST_CASE("read_rr_graph_metadata", "[vpr]") {
     const auto& device_ctx = g_vpr_ctx.device();
 
     // recompute ordering from 'random_shuffle'
-    std::vector<int> src_order(device_ctx.rr_nodes.size()); // new id -> old id
-    std::iota(src_order.begin(), src_order.end(), 0);       // Initialize to [0, 1, 2 ...]
+    std::vector<int> src_order(device_ctx.rr_graph.num_nodes()); // new id -> old id
+    std::iota(src_order.begin(), src_order.end(), 0);            // Initialize to [0, 1, 2 ...]
     std::mt19937 g(1);
     std::shuffle(src_order.begin(), src_order.end(), g);
 
-    CHECK(device_ctx.rr_node_metadata.size() == 1);
-    CHECK(device_ctx.rr_edge_metadata.size() == 1);
+    CHECK(device_ctx.rr_graph_builder.rr_node_metadata_size() == 1);
+    CHECK(device_ctx.rr_graph_builder.rr_edge_metadata_size() == 1);
 
     auto node = arch.strings.intern_string(vtr::string_view("node"));
     auto edge = arch.strings.intern_string(vtr::string_view("edge"));
 
-    for (const auto& node_meta : device_ctx.rr_node_metadata) {
+    for (const auto& node_meta : device_ctx.rr_graph.rr_node_metadata_data()) {
         CHECK(src_order[node_meta.first] == src_inode);
         REQUIRE(node_meta.second.has(node));
         auto* value = node_meta.second.one(node);
@@ -199,7 +225,7 @@ TEST_CASE("read_rr_graph_metadata", "[vpr]") {
         CHECK_THAT(value->as_string().get(&arch.strings), Equals("test node"));
     }
 
-    for (const auto& edge_meta : device_ctx.rr_edge_metadata) {
+    for (const auto& edge_meta : device_ctx.rr_graph.rr_edge_metadata_data()) {
         CHECK(src_order[std::get<0>(edge_meta.first)] == src_inode);
         CHECK(src_order[std::get<1>(edge_meta.first)] == sink_inode);
         CHECK(std::get<2>(edge_meta.first) == switch_id);
@@ -210,6 +236,10 @@ TEST_CASE("read_rr_graph_metadata", "[vpr]") {
         CHECK_THAT(value->as_string().get(&arch.strings), Equals("test edge"));
     }
     vpr_free_all(arch, vpr_setup);
+
+    auto& atom_ctx = g_vpr_ctx.mutable_atom();
+    free_pack_molecules(atom_ctx.list_of_pack_molecules.release());
+    atom_ctx.atom_molecules.clear();
 }
 
 } // namespace

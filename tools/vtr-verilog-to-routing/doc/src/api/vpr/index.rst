@@ -8,3 +8,5 @@ VPR API
 
    contexts
    netlist
+   mapping
+   rr_graph

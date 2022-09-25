@@ -59,14 +59,17 @@ constexpr int SUCCESS_EXIT_CODE = 0; //Everything OK
 constexpr int ERROR_EXIT_CODE = 1; //Something went wrong internally
 constexpr int INTERRUPTED_EXIT_CODE = 3; //VPR was interrupted by the user (e.g. SIGINT/ctr-C)
 
-static void do_one_route(int source_node, int sink_node,
-        const t_router_opts& router_opts,
-        const std::vector<t_segment_inf>& segment_inf) {
+static void do_one_route(int source_node,
+                         int sink_node,
+                         const t_router_opts& router_opts,
+                         const std::vector<t_segment_inf>& segment_inf,
+                         bool is_flat) {
     /* Returns true as long as found some way to hook up this net, even if that *
      * way resulted in overuse of resources (congestion).  If there is no way   *
      * to route this net, even ignoring congestion, it returns false.  In this  *
      * case the rr_graph is disconnected and you can give up.                   */
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
     t_rt_node* rt_root = init_route_tree_to_source_no_net(source_node);
@@ -94,16 +97,19 @@ static void do_one_route(int source_node, int sink_node,
             router_opts.lookahead_type,
             router_opts.write_router_lookahead,
             router_opts.read_router_lookahead,
-            segment_inf
+            segment_inf,
+            is_flat
             );
 
     ConnectionRouter<BinaryHeap> router(
             device_ctx.grid,
             *router_lookahead,
-            device_ctx.rr_nodes,
+            device_ctx.rr_graph.rr_nodes(),
+            &device_ctx.rr_graph,
             device_ctx.rr_rc_data,
-            device_ctx.rr_switch_inf,
-            g_vpr_ctx.mutable_routing().rr_node_route_inf);
+            device_ctx.rr_graph.rr_switch(),
+            g_vpr_ctx.mutable_routing().rr_node_route_inf,
+            is_flat);
     enable_router_debug(router_opts, ClusterNetId(), sink_node, 1, &router);
     bool found_path;
     t_heap cheapest;
@@ -123,7 +129,7 @@ static void do_one_route(int source_node, int sink_node,
         print_route_tree(rt_root);
         VTR_LOG("\n");
 
-        VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[rt_root->inode].occ() <= device_ctx.rr_nodes[rt_root->inode].capacity(), "SOURCE should never be congested");
+        VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[rt_root->inode].occ() <= rr_graph.node_capacity(RRNodeId(rt_root->inode)), "SOURCE should never be congested");
         free_route_tree(rt_root);
     } else {
         VTR_LOG("Routed failed");
@@ -134,8 +140,9 @@ static void do_one_route(int source_node, int sink_node,
 }
 
 static void profile_source(int source_rr_node,
-        const t_router_opts& router_opts,
-        const std::vector<t_segment_inf>& segment_inf) {
+                           const t_router_opts& router_opts,
+                           const std::vector<t_segment_inf>& segment_inf,
+                           bool is_flat) {
     vtr::ScopedStartFinishTimer timer("Profiling source");
     const auto& device_ctx = g_vpr_ctx.device();
     const auto& grid = device_ctx.grid;
@@ -144,9 +151,9 @@ static void profile_source(int source_rr_node,
             router_opts.lookahead_type,
             router_opts.write_router_lookahead,
             router_opts.read_router_lookahead,
-            segment_inf
-            );
-    RouterDelayProfiler profiler(router_lookahead.get());
+            segment_inf,
+            is_flat);
+    RouterDelayProfiler profiler(router_lookahead.get(), is_flat);
 
     int start_x = 0;
     int end_x = grid.width() - 1;
@@ -169,7 +176,7 @@ static void profile_source(int source_rr_node,
             for (int sink_ptc : best_sink_ptcs) {
                 VTR_ASSERT(sink_ptc != OPEN);
 
-                int sink_rr_node = get_rr_node_index(device_ctx.rr_node_indices, sink_x, sink_y, SINK, sink_ptc);
+                int sink_rr_node = size_t(device_ctx.rr_graph.node_lookup().find_node(sink_x, sink_y, SINK, sink_ptc));
 
                 if (directconnect_exists(source_rr_node, sink_rr_node)) {
                     //Skip if we shouldn't measure direct connects and a direct connect exists
@@ -214,12 +221,12 @@ static void profile_source(int source_rr_node,
     VTR_LOG("\n");
 }
 
-
 static t_chan_width setup_chan_width(t_router_opts router_opts,
         t_chan_width_dist chan_width_dist) {
     /*we give plenty of tracks, this increases routability for the */
     /*lookup table generation */
 
+    t_graph_type graph_directionality;
     int width_fac;
 
     if (router_opts.fixed_channel_width == NO_FIXED_CHANNEL_WIDTH) {
@@ -235,7 +242,13 @@ static t_chan_width setup_chan_width(t_router_opts router_opts,
         width_fac = router_opts.fixed_channel_width;
     }
 
-    return init_chan(width_fac, chan_width_dist);
+    if (router_opts.route_type == GLOBAL) {
+        graph_directionality = GRAPH_BIDIR;
+    } else {
+        graph_directionality = GRAPH_UNIDIR;
+    }
+
+    return init_chan(width_fac, chan_width_dist, graph_directionality);
 }
 
 t_route_util_options read_route_util_options(int argc, const char** argv) {
@@ -288,10 +301,10 @@ int main(int argc, const char **argv) {
 
         vpr_setup_clock_networks(vpr_setup, Arch);
 
-
         t_chan_width chan_width = setup_chan_width(
                 vpr_setup.RouterOpts,
                 Arch.Chans);
+        bool is_flat = vpr_setup.RouterOpts.flat_routing;
         alloc_routing_structs(
                 chan_width,
                 vpr_setup.RouterOpts,
@@ -305,14 +318,15 @@ int main(int argc, const char **argv) {
             profile_source(
                 route_options.source_rr_node,
                 vpr_setup.RouterOpts,
-                vpr_setup.Segments
-                );
+                vpr_setup.Segments,
+                is_flat);
         } else {
             do_one_route(
                     route_options.source_rr_node, 
                     route_options.sink_rr_node,
                     vpr_setup.RouterOpts,
-                    vpr_setup.Segments);
+                    vpr_setup.Segments,
+                    is_flat);
         }
         free_routing_structs();
 

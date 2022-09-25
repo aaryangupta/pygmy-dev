@@ -26,9 +26,13 @@
 #include "output_clustering.h"
 #include "read_xml_arch_file.h"
 #include "vpr_utils.h"
+#include "pack.h"
 
 #define LINELENGTH 1024
 #define TAB_LENGTH 4
+
+static void print_clustering_stats_header();
+static void print_clustering_stats(char* block_name, int num_block_type, float num_inputs_clocks, float num_outputs);
 
 /**************** Subroutine definitions ************************************/
 
@@ -48,9 +52,15 @@ static void print_stats() {
 
     num_clb_types = num_clb_inputs_used = num_clb_outputs_used = nullptr;
 
-    num_clb_types = (int*)vtr::calloc(device_ctx.logical_block_types.size(), sizeof(int));
-    num_clb_inputs_used = (int*)vtr::calloc(device_ctx.logical_block_types.size(), sizeof(int));
-    num_clb_outputs_used = (int*)vtr::calloc(device_ctx.logical_block_types.size(), sizeof(int));
+    num_clb_types = new int[device_ctx.logical_block_types.size()];
+    num_clb_inputs_used = new int[device_ctx.logical_block_types.size()];
+    num_clb_outputs_used = new int[device_ctx.logical_block_types.size()];
+
+    for (int i = 0; i < (int)device_ctx.logical_block_types.size(); i++) {
+        num_clb_types[i] = 0;
+        num_clb_inputs_used[i] = 0;
+        num_clb_outputs_used[i] = 0;
+    }
 
     for (auto net_id : atom_ctx.nlist.nets()) {
         nets_absorbed[net_id] = true;
@@ -60,11 +70,10 @@ static void print_stats() {
 
     for (auto blk_id : cluster_ctx.clb_nlist.blocks()) {
         auto logical_block = cluster_ctx.clb_nlist.block_type(blk_id);
-        auto physical_tile = pick_best_physical_type(logical_block);
+        auto physical_tile = pick_physical_type(logical_block);
         for (ipin = 0; ipin < logical_block->pb_type->num_pins; ipin++) {
             int physical_pin = get_physical_pin(physical_tile, logical_block, ipin);
-            auto pin_class = physical_tile->pin_class[physical_pin];
-            auto pin_class_inf = physical_tile->class_inf[pin_class];
+            auto pin_type = get_pin_type_from_pin_physical_num(physical_tile, physical_pin);
 
             if (cluster_ctx.clb_nlist.block_pb(blk_id)->pb_route.empty()) {
                 ClusterNetId clb_net_id = cluster_ctx.clb_nlist.block_net(blk_id, ipin);
@@ -73,9 +82,9 @@ static void print_stats() {
                     VTR_ASSERT(net_id);
                     nets_absorbed[net_id] = false;
 
-                    if (pin_class_inf.type == RECEIVER) {
+                    if (pin_type == RECEIVER) {
                         num_clb_inputs_used[logical_block->index]++;
-                    } else if (pin_class_inf.type == DRIVER) {
+                    } else if (pin_type == DRIVER) {
                         num_clb_outputs_used[logical_block->index]++;
                     }
                 }
@@ -88,9 +97,9 @@ static void print_stats() {
                     auto atom_net_id = pb->pb_route[pb_graph_pin_id].atom_net_id;
                     if (atom_net_id) {
                         nets_absorbed[atom_net_id] = false;
-                        if (pin_class_inf.type == RECEIVER) {
+                        if (pin_type == RECEIVER) {
                             num_clb_inputs_used[logical_block->index]++;
-                        } else if (pin_class_inf.type == DRIVER) {
+                        } else if (pin_type == DRIVER) {
                             num_clb_outputs_used[logical_block->index]++;
                         }
                     }
@@ -100,15 +109,15 @@ static void print_stats() {
         num_clb_types[logical_block->index]++;
     }
 
+    print_clustering_stats_header();
+
     for (itype = 0; itype < device_ctx.logical_block_types.size(); itype++) {
         if (num_clb_types[itype] == 0) {
-            VTR_LOG("\t%s: # blocks: %d, average # input + clock pins used: %g, average # output pins used: %g\n",
-                    device_ctx.logical_block_types[itype].name, num_clb_types[itype], 0.0, 0.0);
+            print_clustering_stats(device_ctx.logical_block_types[itype].name, num_clb_types[itype], 0.0, 0.0);
         } else {
-            VTR_LOG("\t%s: # blocks: %d, average # input + clock pins used: %g, average # output pins used: %g\n",
-                    device_ctx.logical_block_types[itype].name, num_clb_types[itype],
-                    (float)num_clb_inputs_used[itype] / (float)num_clb_types[itype],
-                    (float)num_clb_outputs_used[itype] / (float)num_clb_types[itype]);
+            print_clustering_stats(device_ctx.logical_block_types[itype].name, num_clb_types[itype],
+                                   (float)num_clb_inputs_used[itype] / (float)num_clb_types[itype],
+                                   (float)num_clb_outputs_used[itype] / (float)num_clb_types[itype]);
         }
     }
 
@@ -120,10 +129,33 @@ static void print_stats() {
     }
     VTR_LOG("Absorbed logical nets %d out of %d nets, %d nets not absorbed.\n",
             total_nets_absorbed, (int)atom_ctx.nlist.nets().size(), (int)atom_ctx.nlist.nets().size() - total_nets_absorbed);
-    free(num_clb_types);
-    free(num_clb_inputs_used);
-    free(num_clb_outputs_used);
+    delete[] num_clb_types;
+    delete[] num_clb_inputs_used;
+    delete[] num_clb_outputs_used;
     /* TODO: print more stats */
+}
+
+static void print_clustering_stats_header() {
+    VTR_LOG("Final Clustering Statistics: \n");
+    VTR_LOG("----------   --------   ------------------------------------   --------------------------\n");
+    VTR_LOG("Block Type   # Blocks   Avg. # of input clocks and pins used   Avg. # of output pins used\n");
+    VTR_LOG("----------   --------   ------------------------------------   --------------------------\n");
+}
+
+static void print_clustering_stats(char* block_name, int num_block_type, float num_inputs_clocks, float num_outputs) {
+    VTR_LOG(
+        "%10s   "
+        "%8d   "
+        "%36g   "
+        "%26g   ",
+        block_name,
+        num_block_type,
+        num_inputs_clocks,
+        num_outputs);
+
+    VTR_LOG("\n");
+
+    fflush(stdout);
 }
 
 static const char* clustering_xml_net_text(AtomNetId net_id) {
@@ -614,4 +646,27 @@ void output_clustering(const vtr::vector<ClusterBlockId, std::vector<t_intra_lb_
             cluster_ctx.clb_nlist.block_pb(blk_id)->pb_route.clear();
         }
     }
+}
+
+/********************************************************************
+ * An useful API to output packing results to a XML file
+ * This function is a wrapper for the function output_clustering()
+ * but remove all the requirements on input data structures that
+ * have to be built with other APIs
+ *
+ * As such, this function is expected to be a standard API 
+ * which can be called anytime and anywhere after packing is finished.
+ ********************************************************************/
+void write_packing_results_to_xml(const bool& global_clocks,
+                                  const std::string& architecture_id,
+                                  const char* out_fname) {
+    vtr::vector<ClusterBlockId, std::vector<t_intra_lb_net>*> intra_lb_routing_placeholder;
+    std::unordered_set<AtomNetId> is_clock = alloc_and_load_is_clock(global_clocks);
+
+    output_clustering(intra_lb_routing_placeholder,
+                      global_clocks,
+                      is_clock,
+                      architecture_id,
+                      out_fname,
+                      false);
 }

@@ -1,26 +1,39 @@
 `define WORD_SIZE 32
-`define DEPTH_LOG2 3
-`define RAM_DEPTH 2**3
+`define DEPTH_LOG2 4
+`define RAM_DEPTH 2**4
 
-module inferred_ram(
+module inferred_dpram(
 	clk,
-	data_in,
-	data_out,
-	address
+	address_a,
+	address_b,
+	data_a,
+	data_b,
+	data_out_a,
+	data_out_b
 );
 
 	input clk;
-	input [`DEPTH_LOG2-1:0] address;
-	input [`WORD_SIZE-1:0] data_in;
-	output [`WORD_SIZE-1:0] data_out;
+
+	input [`DEPTH_LOG2-1:0] address_a;
+	input [`DEPTH_LOG2-1:0] address_b;
+
+	input [`WORD_SIZE-1:0] data_a;
+	input [`WORD_SIZE-1:0] data_b;
+
+	output [`WORD_SIZE-1:0] data_out_a;
+	output [`WORD_SIZE-1:0] data_out_b;
 
 	reg  [`WORD_SIZE-1:0] mregs [`RAM_DEPTH-1:0];  
 
 	always @ (posedge clk )
 	begin
-		mregs[address] <= data_in;
-		// address may have changed so we need a dual port ram.
-		data_out <= mregs[address];
+		// First port
+		mregs[address_a] <= data_a;
+		data_out_a <= mregs[address_a];
+
+		// Second port
+		mregs[address_b] <= data_b;
+		data_out_b <= mregs[address_b];
 	end
 
 endmodule

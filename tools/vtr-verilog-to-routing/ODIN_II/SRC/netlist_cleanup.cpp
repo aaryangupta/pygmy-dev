@@ -22,6 +22,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <algorithm> // std::fill
 #include <math.h>
 #include "odin_types.h"
 #include "odin_globals.h"
@@ -29,6 +30,9 @@
 #include "netlist_utils.h"
 #include "vtr_util.h"
 #include "vtr_memory.h"
+#include "odin_ii.h"
+
+bool coarsen_cleanup;
 
 /* Used in the nnode_t.node_data field to mark if the node was already visited
  * during a forward or backward sweep traversal or the removal phase */
@@ -46,8 +50,9 @@ struct node_list_t {
 node_list_t useless_nodes;                       // List of the nodes to be removed
 node_list_t* removal_list_next = &useless_nodes; // Tail of the nodes to be removed
 
-node_list_t addsub_nodes;                      // List of the adder/subtractor nodes
-node_list_t* addsub_list_next = &addsub_nodes; // Tail of the adder/subtractor node list
+node_list_t addsub_nodes;                              // List of the adder/subtractor nodes
+node_list_t* addsub_list_next = &addsub_nodes;         // Tail of the adder/subtractor node list
+long long num_removed_nodes[operation_list_END] = {0}; //List of removed nodes by type
 
 /* Function declarations */
 node_list_t* insert_node_list(node_list_t* node_list, nnode_t* node);
@@ -58,6 +63,8 @@ void identify_unused_nodes(netlist_t* netlist);
 void remove_unused_nodes(node_list_t* remove);
 void calculate_addsub_statistics(node_list_t* addsub);
 void remove_unused_logic(netlist_t* netlist);
+void count_node_type(nnode_t* node);
+void report_removed_nodes(long long* node_list);
 
 node_list_t* insert_node_list(node_list_t* node_list, nnode_t* node) {
     node_list->node = node;
@@ -71,8 +78,11 @@ void traverse_backward(nnode_t* node) {
     node->node_data = VISITED_BACKWARD;              // Mark as visited
     int i;
     for (i = 0; i < node->num_input_pins; i++) {
-        for (int j = 0; j < node->input_pins[i]->net->num_driver_pins; j++) {  // ensure this net has a driver (i.e. skip undriven outputs)
-            traverse_backward(node->input_pins[i]->net->driver_pins[j]->node); // Visit the drivers of this node
+        // ensure this net has a driver (i.e. skip undriven outputs)
+        for (int j = 0; j < node->input_pins[i]->net->num_driver_pins; j++) {
+            if (node->input_pins[i]->net->driver_pins[j]->node)
+                // Visit the drivers of this node
+                traverse_backward(node->input_pins[i]->net->driver_pins[j]->node);
         }
     }
 }
@@ -98,6 +108,7 @@ void traverse_forward(nnode_t* node, int toplevel, int remove_me) {
     if (remove_me) {
         /* Add this node to the list of nodes to remove */
         removal_list_next = insert_node_list(removal_list_next, node);
+        count_node_type(node);
     }
 
     if (node->type == ADD || node->type == MINUS) {
@@ -169,7 +180,9 @@ void remove_unused_nodes(node_list_t* remove) {
         int i;
         for (i = 0; i < remove->node->num_input_pins; i++) {
             npin_t* input_pin = remove->node->input_pins[i];
-            input_pin->net->fanout_pins[input_pin->pin_net_idx] = NULL; // Remove the fanout pin from the net
+            /* Remove the fanout pin from the net */
+            if (input_pin)
+                input_pin->net->fanout_pins[input_pin->pin_net_idx] = NULL;
         }
         remove->node->node_data = VISITED_REMOVAL;
         remove = remove->next;
@@ -230,11 +243,84 @@ void calculate_addsub_statistics(node_list_t* addsub) {
     /* Calculate the geometric mean carry chain length */
     geomean_addsub_length = exp(sum_of_addsub_logs / total_addsub_chain_count);
 }
+void count_node_type(nnode_t* node) {
+    switch (node->type) {
+        case LOGICAL_OR:   //fallthrough
+        case LOGICAL_AND:  //fallthrough
+        case LOGICAL_NOR:  //fallthrough
+        case LOGICAL_NAND: //fallthrough
+        case LOGICAL_XOR:  //fallthrough
+        case LOGICAL_XNOR: //fallthrough
+        case LOGICAL_NOT:  //fallthrough
+            num_removed_nodes[node->type]++;
+            num_removed_nodes[GENERIC]++;
+            break;
+
+        case MUX_2:  //fallthrough
+        case SMUX_2: //fallthrough
+            num_removed_nodes[MUX_2]++;
+            num_removed_nodes[GENERIC]++;
+            break;
+
+        case GENERIC: //fallthrough
+            num_removed_nodes[node->type]++;
+            break;
+
+        case MINUS: //fallthrough
+            /* Minus nodes are built of Add nodes */
+            num_removed_nodes[ADD]++;
+            break;
+
+        case PAD_NODE: //fallthrough
+        case GND_NODE: //fallthrough
+        case VCC_NODE: //fallthrough
+            /* These are irrelevent so we dont output */
+            break;
+
+        case INPUT_NODE:  //fallthrough
+        case OUTPUT_NODE: //fallthrough
+            /* these stay untouched but are not added to the total*/
+            num_removed_nodes[node->type]++;
+            break;
+
+        case CLOCK_NODE: //fallthrough
+        case FF_NODE:    //fallthrough
+        case MULTIPLY:   //fallthrough
+        case ADD:        //fallthrough
+        case MEMORY:     //fallthrough
+        case HARD_IP:    //fallthrough
+            /* these stay untouched */
+            num_removed_nodes[node->type]++;
+            break;
+
+        default:
+            /* everything else is generic */
+            num_removed_nodes[GENERIC]++;
+            break;
+    }
+}
+
+void report_removed_nodes(long long* node_list) {
+    // return if there is no removed logic
+    if (!useless_nodes.node)
+        return;
+
+    warning_message(NETLIST, unknown_location, "%s", "Following unused node(s) removed from the netlist:\n");
+    for (int i = 0; i < operation_list_END; i++) {
+        if (node_list[i] > UNUSED_NODE_TYPE) {
+            std::string msg = std::string("Number of removed <")
+                              + operation_list_STR[i][ODIN_LONG_STRING]
+                              + "> node(s): ";
+            printf("%-42s%lld\n", msg.c_str(), node_list[i]);
+        }
+    }
+}
 
 /* Perform the backwards and forward sweeps and remove the unused nodes */
 void remove_unused_logic(netlist_t* netlist) {
     mark_output_dependencies(netlist);
     identify_unused_nodes(netlist);
     remove_unused_nodes(&useless_nodes);
+    if (global_args.all_warnings) report_removed_nodes(num_removed_nodes);
     calculate_addsub_statistics(&addsub_nodes);
 }

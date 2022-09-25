@@ -19,6 +19,7 @@ void SetupVPR(const t_options* Options,
               t_annealing_sched* AnnealSched,
               t_router_opts* RouterOpts,
               t_analysis_opts* AnalysisOpts,
+              t_noc_opts* NocOpts,
               t_det_routing_arch* RoutingArch,
               std::vector<t_lb_type_rr_node>** PackerRRGraphs,
               std::vector<t_segment_inf>& Segments,
@@ -27,5 +28,6 @@ void SetupVPR(const t_options* Options,
               int* GraphPause,
               bool* SaveGraphics,
               std::string* GraphicsCommands,
-              t_power_opts* PowerOpts);
+              t_power_opts* PowerOpts,
+              t_vpr_setup* vpr_setup);
 #endif

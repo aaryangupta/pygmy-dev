@@ -12,14 +12,17 @@
 static t_rt_node* setup_routing_resources_no_net(int source_node);
 
 RouterDelayProfiler::RouterDelayProfiler(
-    const RouterLookahead* lookahead)
+    const RouterLookahead* lookahead,
+    bool is_flat)
     : router_(
           g_vpr_ctx.device().grid,
           *lookahead,
-          g_vpr_ctx.device().rr_nodes,
+          g_vpr_ctx.device().rr_graph.rr_nodes(),
+          &g_vpr_ctx.device().rr_graph,
           g_vpr_ctx.device().rr_rc_data,
-          g_vpr_ctx.device().rr_switch_inf,
-          g_vpr_ctx.mutable_routing().rr_node_route_inf) {}
+          g_vpr_ctx.device().rr_graph.rr_switch(),
+          g_vpr_ctx.mutable_routing().rr_node_route_inf,
+          is_flat) {}
 
 bool RouterDelayProfiler::calculate_delay(int source_node, int sink_node, const t_router_opts& router_opts, float* net_delay) {
     /* Returns true as long as found some way to hook up this net, even if that *
@@ -27,16 +30,17 @@ bool RouterDelayProfiler::calculate_delay(int source_node, int sink_node, const 
      * to route this net, even ignoring congestion, it returns false.  In this  *
      * case the rr_graph is disconnected and you can give up.                   */
     auto& device_ctx = g_vpr_ctx.device();
+    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
     //vtr::ScopedStartFinishTimer t(vtr::string_fmt("Profiling Delay from %s at %d,%d (%s) to %s at %d,%d (%s)",
-    //device_ctx.rr_nodes[source_node].type_string(),
-    //device_ctx.rr_nodes[source_node].xlow(),
-    //device_ctx.rr_nodes[source_node].ylow(),
+    //rr_graph.node_type_string(RRNodeId(source_node)),
+    //rr_graph.node_xlow(RRNodeId(source_node)),
+    //rr_graph.node_ylow(RRNodeId(source_node)),
     //rr_node_arch_name(source_node).c_str(),
-    //device_ctx.rr_nodes[sink_node].type_string(),
-    //device_ctx.rr_nodes[sink_node].xlow(),
-    //device_ctx.rr_nodes[sink_node].ylow(),
+    //rr_graph.node_type_string(RRNodeId(sink_node)),
+    //rr_graph.node_xlow(RRNodeId(sink_node)),
+    //rr_graph.node_ylow(RRNodeId(sink_node)),
     //rr_node_arch_name(sink_node).c_str()));
 
     t_rt_node* rt_root = setup_routing_resources_no_net(source_node);
@@ -54,7 +58,7 @@ bool RouterDelayProfiler::calculate_delay(int source_node, int sink_node, const 
 
     t_conn_cost_params cost_params;
     cost_params.criticality = 1.;
-    cost_params.astar_fac = router_opts.astar_fac;
+    cost_params.astar_fac = router_opts.router_profiler_astar_fac;
     cost_params.bend_cost = router_opts.bend_cost;
 
     route_budgets budgeting_inf;
@@ -79,7 +83,7 @@ bool RouterDelayProfiler::calculate_delay(int source_node, int sink_node, const 
         //find delay
         *net_delay = rt_node_of_sink->Tdel;
 
-        VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[rt_root->inode].occ() <= device_ctx.rr_nodes[rt_root->inode].capacity(), "SOURCE should never be congested");
+        VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[rt_root->inode].occ() <= rr_graph.node_capacity(RRNodeId(rt_root->inode)), "SOURCE should never be congested");
         free_route_tree(rt_root);
     }
 
@@ -94,11 +98,13 @@ bool RouterDelayProfiler::calculate_delay(int source_node, int sink_node, const 
 }
 
 //Returns the shortest path delay from src_node to all RR nodes in the RR graph, or NaN if no path exists
-std::vector<float> calculate_all_path_delays_from_rr_node(int src_rr_node, const t_router_opts& router_opts) {
+std::vector<float> calculate_all_path_delays_from_rr_node(int src_rr_node,
+                                                          const t_router_opts& router_opts,
+                                                          bool is_flat) {
     auto& device_ctx = g_vpr_ctx.device();
     auto& routing_ctx = g_vpr_ctx.mutable_routing();
 
-    std::vector<float> path_delays_to(device_ctx.rr_nodes.size(), std::numeric_limits<float>::quiet_NaN());
+    std::vector<float> path_delays_to(device_ctx.rr_graph.num_nodes(), std::numeric_limits<float>::quiet_NaN());
 
     t_rt_node* rt_root = setup_routing_resources_no_net(src_rr_node);
 
@@ -115,14 +121,17 @@ std::vector<float> calculate_all_path_delays_from_rr_node(int src_rr_node, const
 
     auto router_lookahead = make_router_lookahead(e_router_lookahead::NO_OP,
                                                   /*write_lookahead=*/"", /*read_lookahead=*/"",
-                                                  /*segment_inf=*/{});
+                                                  /*segment_inf=*/{},
+                                                  is_flat);
     ConnectionRouter<BinaryHeap> router(
         device_ctx.grid,
         *router_lookahead,
-        device_ctx.rr_nodes,
+        device_ctx.rr_graph.rr_nodes(),
+        &g_vpr_ctx.device().rr_graph,
         device_ctx.rr_rc_data,
-        device_ctx.rr_switch_inf,
-        routing_ctx.rr_node_route_inf);
+        device_ctx.rr_graph.rr_switch(),
+        routing_ctx.rr_node_route_inf,
+        is_flat);
     RouterStats router_stats;
 
     std::vector<t_heap> shortest_paths = router.timing_driven_find_all_shortest_paths_from_route_tree(rt_root,
@@ -132,8 +141,8 @@ std::vector<float> calculate_all_path_delays_from_rr_node(int src_rr_node, const
 
     free_route_tree(rt_root);
 
-    VTR_ASSERT(shortest_paths.size() == device_ctx.rr_nodes.size());
-    for (int sink_rr_node = 0; sink_rr_node < (int)device_ctx.rr_nodes.size(); ++sink_rr_node) {
+    VTR_ASSERT(shortest_paths.size() == device_ctx.rr_graph.num_nodes());
+    for (int sink_rr_node = 0; sink_rr_node < (int)device_ctx.rr_graph.num_nodes(); ++sink_rr_node) {
         if (sink_rr_node == src_rr_node) {
             path_delays_to[sink_rr_node] = 0.;
         } else {

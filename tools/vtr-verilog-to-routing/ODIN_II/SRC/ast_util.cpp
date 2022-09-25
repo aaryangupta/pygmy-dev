@@ -625,6 +625,9 @@ char* get_name_of_pin_at_bit(ast_node_t* var_node, int bit, char* instance_name_
                 var_node = free_whole_tree(var_node);
             }
         }
+    } else if (var_node->type == BINARY_OPERATION || var_node->type == UNARY_OPERATION || var_node->type == TERNARY_OPERATION) {
+        if (!var_node->net_node)
+            error_message(AST, var_node->loc, "Expression is not allowed for outputs in instance port connections. var_node->type = %s\n", ast_node_name_based_on_ids(var_node));
     } else {
         return_string = NULL;
 
@@ -931,6 +934,7 @@ ast_node_t* ast_node_copy(ast_node_t* node) {
     if (node->types.variable.initial_value)
         node_copy->types.variable.initial_value = new VNumber((*node->types.variable.initial_value));
 
+    node_copy->types.variable.signedness = node->types.variable.signedness;
     node_copy->types.identifier = vtr::strdup(node->types.identifier);
     node_copy->identifier_node = ast_node_deep_copy(node_copy->identifier_node);
     node_copy->children = NULL;

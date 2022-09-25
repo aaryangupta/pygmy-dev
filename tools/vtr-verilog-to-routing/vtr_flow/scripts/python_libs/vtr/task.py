@@ -18,7 +18,7 @@ from vtr import (
     paths,
 )
 
-# pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-locals,too-few-public-methods
+# pylint: disable=too-many-instance-attributes, too-many-arguments, too-many-locals, too-few-public-methods
 class TaskConfig:
     """
     An object representing a task config file
@@ -33,6 +33,8 @@ class TaskConfig:
         circuit_list_add,
         arch_list_add,
         parse_file,
+        includes_dir=None,
+        include_list_add=None,
         second_parse_file=None,
         script_path=None,
         script_params=None,
@@ -40,9 +42,12 @@ class TaskConfig:
         script_params_list_add=None,
         pass_requirements_file=None,
         sdc_dir=None,
+        place_constr_dir=None,
         qor_parse_file=None,
         cmos_tech_behavior=None,
         pad_file=None,
+        additional_files=None,
+        additional_files_list_add=None,
     ):
         self.task_name = task_name
         self.config_dir = config_dir
@@ -50,6 +55,8 @@ class TaskConfig:
         self.arch_dir = archs_dir
         self.circuits = circuit_list_add
         self.archs = arch_list_add
+        self.include_dir = includes_dir
+        self.includes = include_list_add
         self.parse_file = parse_file
         self.second_parse_file = second_parse_file
         self.script_path = script_path
@@ -58,9 +65,12 @@ class TaskConfig:
         self.script_params_list_add = script_params_list_add
         self.pass_requirements_file = pass_requirements_file
         self.sdc_dir = sdc_dir
+        self.place_constr_dir = place_constr_dir
         self.qor_parse_file = qor_parse_file
         self.cmos_tech_behavior = cmos_tech_behavior
         self.pad_file = pad_file
+        self.additional_files = additional_files
+        self.additional_files_list_add = additional_files_list_add
 
 
 # pylint: enable=too-few-public-methods
@@ -76,6 +86,7 @@ class Job:
         task_name,
         arch,
         circuit,
+        include,
         script_params,
         work_dir,
         run_command,
@@ -86,6 +97,7 @@ class Job:
         self._task_name = task_name
         self._arch = arch
         self._circuit = circuit
+        self._include = include
         self._script_params = script_params
         self._run_command = run_command
         self._parse_command = parse_command
@@ -110,6 +122,12 @@ class Job:
         return the circuit file name of the job
         """
         return self._circuit
+
+    def include(self):
+        """
+        return the list of include files (.v/.vh) of the job.
+        """
+        return self._include
 
     def script_params(self):
         """
@@ -168,13 +186,16 @@ def load_task_config(config_file):
     unique_keys = set(
         [
             "circuits_dir",
+            "includes_dir",
             "archs_dir",
+            "additional_files",
             "parse_file",
             "script_path",
             "script_params",
             "script_params_common",
             "pass_requirements_file",
             "sdc_dir",
+            "place_constr_dir",
             "qor_parse_file",
             "cmos_tech_behavior",
             "pad_file",
@@ -229,7 +250,8 @@ def load_task_config(config_file):
     if "script_params_common" in key_values:
         key_values["script_params_common"] = split(key_values["script_params_common"])
 
-    check_required_feilds(config_file, required_keys, key_values)
+    check_required_fields(config_file, required_keys, key_values)
+    check_include_fields(config_file, key_values)
 
     # Useful meta-data about the config
     config_dir = str(Path(config_file).parent)
@@ -240,7 +262,7 @@ def load_task_config(config_file):
     return TaskConfig(**key_values)
 
 
-def check_required_feilds(config_file, required_keys, key_values):
+def check_required_fields(config_file, required_keys, key_values):
     """
     Check that all required fields were specified
     """
@@ -249,6 +271,20 @@ def check_required_feilds(config_file, required_keys, key_values):
             raise VtrError(
                 "Missing required key '{key}' in config file {file}".format(
                     key=required_key, file=config_file
+                )
+            )
+
+
+def check_include_fields(config_file, key_values):
+    """
+    Check that includes_dir was specified if some files to include
+    in the designs (include_list_add) was specified.
+    """
+    if "include_list_add" in key_values:
+        if "includes_dir" not in key_values:
+            raise VtrError(
+                "Missing required key '{key}' in config file {file}".format(
+                    key="includes_dir", file=config_file
                 )
             )
 
@@ -284,7 +320,8 @@ def find_longest_task_description(configs):
     return longest
 
 
-def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run=False):
+# pylint: disable=too-many-branches
+def create_jobs(args, configs, after_run=False):
     """
     Create the jobs to be executed depending on the configs.
     """
@@ -306,6 +343,27 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
 
             # Collect any extra script params from the config file
             cmd = [abs_circuit_filepath, abs_arch_filepath]
+
+            # Resolve and collect all include paths in the config file
+            # as -include ["include1", "include2", ..]
+            includes = []
+            if config.includes:
+                cmd += ["-include"]
+                for include in config.includes:
+                    abs_include_filepath = resolve_vtr_source_file(
+                        config, include, config.include_dir
+                    )
+                    includes.append(abs_include_filepath)
+
+                cmd += includes
+
+            # Check if additional architectural data files are present
+            if config.additional_files_list_add:
+                for additional_file in config.additional_files_list_add:
+                    flag, file_name = additional_file.split(",")
+
+                    cmd += [flag]
+                    cmd += [resolve_vtr_source_file(config, file_name, config.arch_dir)]
 
             if hasattr(args, "show_failures") and args.show_failures:
                 cmd += ["-show_failures"]
@@ -331,10 +389,18 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
             )
 
             if config.sdc_dir:
-                cmd += [
-                    "-sdc_file",
-                    "{}/{}.sdc".format(config.sdc_dir, Path(circuit).stem),
-                ]
+                sdc_name = "{}.sdc".format(Path(circuit).stem)
+                sdc_file = resolve_vtr_source_file(config, sdc_name, config.sdc_dir)
+
+                cmd += ["-sdc_file", "{}".format(sdc_file)]
+
+            if config.place_constr_dir:
+                place_constr_name = "{}.place".format(Path(circuit).stem)
+                place_constr_file = resolve_vtr_source_file(
+                    config, place_constr_name, config.place_constr_dir
+                )
+
+                cmd += ["--fix_clusters", "{}".format(place_constr_file)]
 
             parse_cmd = None
             second_parse_cmd = None
@@ -342,7 +408,9 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
             if config.parse_file:
                 parse_cmd = [
                     resolve_vtr_source_file(
-                        config, config.parse_file, str(PurePath("parse").joinpath("parse_config")),
+                        config,
+                        config.parse_file,
+                        str(PurePath("parse").joinpath("parse_config")),
                     )
                 ]
 
@@ -374,6 +442,7 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
                             args,
                             config,
                             circuit,
+                            includes,
                             arch,
                             value,
                             cmd,
@@ -382,8 +451,6 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
                             qor_parse_command,
                             work_dir,
                             run_dir,
-                            longest_name,
-                            longest_arch_circuit,
                             golden_results,
                         )
                     )
@@ -393,6 +460,7 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
                         args,
                         config,
                         circuit,
+                        includes,
                         arch,
                         None,
                         cmd,
@@ -401,8 +469,6 @@ def create_jobs(args, configs, longest_name=0, longest_arch_circuit=0, after_run
                         qor_parse_command,
                         work_dir,
                         run_dir,
-                        longest_name,
-                        longest_arch_circuit,
                         golden_results,
                     )
                 )
@@ -414,6 +480,7 @@ def create_job(
     args,
     config,
     circuit,
+    include,
     arch,
     param,
     cmd,
@@ -422,31 +489,18 @@ def create_job(
     qor_parse_command,
     work_dir,
     run_dir,
-    longest_name,
-    longest_arch_circuit,
     golden_results,
 ):
     """
     Create an individual job with the specified parameters
     """
     param_string = "common" + (("_" + param.replace(" ", "_")) if param else "")
+    for spec_char in [":", "<", ">", "|", "*", "?"]:
+        # replaced to create valid URL path
+        param_string = param_string.replace(spec_char, "_")
     if not param:
         param = "common"
-    # determine spacing for nice output
-    num_spaces_before = int((longest_name - len(config.task_name))) + 8
-    num_spaces_after = int((longest_arch_circuit - len(work_dir + "/{}".format(param_string))))
-    cmd += [
-        "-name",
-        "{}:{}{}/{}{}".format(
-            config.task_name,
-            " " * num_spaces_before,
-            work_dir,
-            param_string,
-            " " * num_spaces_after,
-        ),
-    ]
 
-    cmd += ["-temp_dir", run_dir + "/{}".format(param_string)]
     expected_min_w = ret_expected_min_w(circuit, arch, golden_results, param)
     expected_min_w = (
         int(expected_min_w * args.minw_hint_factor)
@@ -487,12 +541,14 @@ def create_job(
         ]
         current_qor_parse_command.insert(0, run_dir + "/{}".format(load_script_param(param)))
     current_cmd = cmd.copy()
+    current_cmd += ["-temp_dir", run_dir + "/{}".format(param_string)]
     if param_string != "common":
         current_cmd += param.split(" ")
     return Job(
         config.task_name,
         arch,
         circuit,
+        include,
         param_string,
         work_dir + "/" + param_string,
         current_cmd,

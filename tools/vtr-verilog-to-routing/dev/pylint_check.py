@@ -84,13 +84,29 @@ grandfathered_files = [
     repo_path / "vtr_flow/scripts/spice/run_spice.py",
 ]
 
+# These python files are related to external repositories added as subtrees
+# to the vtr_flow directory. They should be skipped for the Linting process
+subtree_files = [
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/top/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/test/top_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/test/audio_param_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/test/audio_clock_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/test/spd_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/sim/top_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/sim/audio_param_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/sim/audio_clock_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/sim/spd_tb/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/src/Manifest.py",
+    repo_path / "vtr_flow/benchmarks/system_verilog/hdmi/Manifest.py",
+]
+
 ################################################################################
 ################################################################################
 ################################################################################
 
 
 class TermColor:
-    """ Terminal codes for printing in color """
+    """Terminal codes for printing in color"""
 
     # pylint: disable=too-few-public-methods
 
@@ -105,14 +121,14 @@ class TermColor:
 
 
 def error(*msg, returncode=-1):
-    """ Print an error message and exit program """
+    """Print an error message and exit program"""
 
     print(TermColor.RED + "ERROR:", " ".join(str(item) for item in msg), TermColor.END)
     sys.exit(returncode)
 
 
 def expand_paths():
-    """ Build a list of all python files to process by going through 'paths_to_lint' """
+    """Build a list of all python files to process by going through 'paths_to_lint'"""
 
     paths = []
     for (path, is_recursive) in paths_to_lint:
@@ -121,7 +137,7 @@ def expand_paths():
             if path.suffix.lower() != ".py":
                 print(path, "does note have extension '.py'")
                 sys.exit(-1)
-            paths.append(path)
+            paths.append(path.resolve())
 
         # If path is a directory, search for .py files
         elif path.is_dir():
@@ -151,11 +167,22 @@ def main():
         action="store_true",
         help="Also check grandfathered files for lint errors.",
     )
+    parser.add_argument("files", nargs="*", help="List of files to check using pylint.")
     args = parser.parse_args()
 
-    # Expand all paths
-    paths = expand_paths()
-    print(TermColor.BLUE + "Linting", len(paths), "python files.", TermColor.END)
+    # Check if we are doing all files, or user-provided list
+    if args.files:
+        # Check that all files exist, and build pathlib objects
+        paths = []
+        for file in args.files:
+            f_path = pathlib.Path(file).resolve()
+            if not f_path.is_file():
+                error(f_path, "does not exist")
+            paths.append(f_path)
+    else:
+        # Expand all paths
+        paths = expand_paths()
+    print(TermColor.BLUE + "Linting", len(paths), "python file(s).", TermColor.END)
 
     # Lint files
     num_error_files = 0
@@ -164,7 +191,17 @@ def main():
 
         if (path in grandfathered_files) and not args.check_grandfathered:
             print(
-                TermColor.YELLOW + relpath_str, "skipped (grandfathered)", TermColor.END,
+                TermColor.YELLOW + relpath_str,
+                "skipped (grandfathered)",
+                TermColor.END,
+            )
+            continue
+
+        if path in subtree_files:
+            print(
+                TermColor.YELLOW + relpath_str,
+                "skipped (external subtree python file)",
+                TermColor.END,
             )
             continue
 

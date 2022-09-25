@@ -1,39 +1,39 @@
 {
     "integer/integer_outside/no_arch": {
         "test_name": "integer/integer_outside/no_arch",
-        "blif": "integer_outside.blif",
+        "generated_blif": "integer_outside_generated.blif",
         "exit": 134,
         "errors": [
-            "[OUTPUT_BLIF] Vector files differ."
+            "[SIMULATION] Vector files differ."
         ],
         "warnings": [
-            "[OUTPUT_BLIF] Vector 0 mismatch:",
-            "[OUTPUT_BLIF] Vector 1 mismatch:",
-            "[OUTPUT_BLIF] Vector 2 mismatch:",
-            "[OUTPUT_BLIF] Vector 3 mismatch:",
-            "[OUTPUT_BLIF] Vector 4 mismatch:",
-            "[OUTPUT_BLIF] Vector 5 mismatch:"
+            "[SIMULATION] Vector 0 mismatch:",
+            "[SIMULATION] Vector 1 mismatch:",
+            "[SIMULATION] Vector 2 mismatch:",
+            "[SIMULATION] Vector 3 mismatch:",
+            "[SIMULATION] Vector 4 mismatch:",
+            "[SIMULATION] Vector 5 mismatch:"
         ]
     },
     "integer/integer_port/no_arch": {
         "test_name": "integer/integer_port/no_arch",
-        "blif": "integer_port.blif",
+        "generated_blif": "integer_port_generated.blif",
         "exit": 134,
         "errors": [
-            "[OUTPUT_BLIF] Vector files differ."
+            "[SIMULATION] Vector files differ."
         ],
         "warnings": [
-            "[OUTPUT_BLIF] Vector 0 mismatch:",
-            "[OUTPUT_BLIF] Vector 1 mismatch:",
-            "[OUTPUT_BLIF] Vector 3 mismatch:",
-            "[OUTPUT_BLIF] Vector 4 mismatch:",
-            "[OUTPUT_BLIF] Vector 5 mismatch:"
+            "[SIMULATION] Vector 0 mismatch:",
+            "[SIMULATION] Vector 1 mismatch:",
+            "[SIMULATION] Vector 3 mismatch:",
+            "[SIMULATION] Vector 4 mismatch:",
+            "[SIMULATION] Vector 5 mismatch:"
         ]
     },
     "DEFAULT": {
         "test_name": "n/a",
         "architecture": "n/a",
-        "blif": "n/a",
+        "generated_blif": "n/a",
         "exit": 0,
         "leaks": 0,
         "errors": [],

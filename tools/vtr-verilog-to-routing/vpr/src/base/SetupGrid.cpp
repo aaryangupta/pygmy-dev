@@ -191,9 +191,7 @@ static DeviceGrid auto_size_device_grid(const std::vector<t_grid_def>& grid_layo
             //Check if it satisfies the block counts
             if (grid_satisfies_instance_counts(grid, minimum_instance_counts, maximum_device_utilization)) {
                 //Re-build the grid at the final size with out-of-range
-                //warnings turned on (so users are aware of out-of-range issues
-                //at the final device sizes)
-                grid = build_device_grid(grid_def, width, height, true, limiting_resources);
+                grid = build_device_grid(grid_def, width, height, false, limiting_resources);
                 return grid;
             }
 
@@ -742,7 +740,7 @@ float calculate_device_utilization(const DeviceGrid& grid, std::map<t_logical_bl
             continue;
         }
 
-        t_physical_tile_type_ptr type = pick_best_physical_type(kv.first);
+        t_physical_tile_type_ptr type = pick_physical_type(kv.first);
 
         size_t count = kv.second;
 

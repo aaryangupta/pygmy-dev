@@ -18,6 +18,7 @@ const char* odin_error_STR[] = {
     "PARSE_ARGS",
     "PARSE_TO_AST",
     "AST",
+    "BLIF ELABORATION",
     "NETLIST",
     "PARSE_BLIF",
     "OUTPUT_BLIF",
@@ -122,23 +123,23 @@ void _log_message(odin_error error_type, loc_t loc, bool fatal_error, const char
     }
 
     fflush(stderr);
-    _verbose_assert(!fatal_error, NULL, function_file_name, function_line, function_name);
+    if (fatal_error) {
+        _verbose_abort(NULL, function_file_name, function_line, function_name);
+    }
 }
 
-void _verbose_assert(bool condition, const char* condition_str, const char* odin_file_name, int odin_line_number, const char* odin_function_name) {
+void _verbose_abort(const char* condition_str, const char* odin_file_name, int odin_line_number, const char* odin_function_name) {
     fflush(stdout);
-    if (!condition) {
-        fprintf(stderr, "\n%s:%d: %s: ", odin_file_name, odin_line_number, odin_function_name);
-        if (condition_str) {
-            // We are an assertion, print the condition that failed and which line it occurred on
-            fprintf(stderr, "Assertion %s failed\n", condition_str);
-            // odin_line_number-1 since __LINE__ starts from 1
-            print_culprit_line_with_context(-1, odin_line_number - 1, odin_file_name, 2);
-        } else {
-            // We are a parsing error, dont print the culprit line
-            fprintf(stderr, "Fatal error\n");
-        }
-        fflush(stderr);
-        std::abort();
+    fprintf(stderr, "\n%s:%d: %s: ", odin_file_name, odin_line_number, odin_function_name);
+    if (condition_str) {
+        // We are an assertion, print the condition that failed and which line it occurred on
+        fprintf(stderr, "Assertion %s failed\n", condition_str);
+        // odin_line_number-1 since __LINE__ starts from 1
+        print_culprit_line_with_context(-1, odin_line_number - 1, odin_file_name, 2);
+    } else {
+        // We are a parsing error, dont print the culprit line
+        fprintf(stderr, "Fatal error\n");
     }
+    fflush(stderr);
+    std::abort();
 }

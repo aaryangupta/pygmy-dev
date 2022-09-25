@@ -140,6 +140,22 @@ Optional Fields
 
     For instance with ``circuit_list_add=my_circuit.v`` or ``circuit_list_add=my_circuit.blif``, the flow would look for an SDC file named ``my_circuit.sdc`` within the specified ``sdc_dir``.
 
+* **includes_dir**:  Directory path to benchmark _include_ files
+
+    Absolute path or relative to ``$VTR_ROOT/vtr_flow/``.
+
+    Note: Multiple `includes_dir` are NOT allowed in a task config file.
+
+* **include_list_add**: A path to an `include` file, which is relative to `includes_dir`
+    
+    Multiple `include_list_add` can be provided.
+
+    `include` files could act as the top module complementary, like definitions, memory initialization files, macros or sub-modules.
+
+    Note: Only `include` files, written in supported HDLs by each frontend, are synthesized. The others are only copied to the destination folder.
+    
+    Note: `include` files will be shared among all benchmark circuits in the task config file. 
+
 * **pass_requirements_file**: :ref:`vtr_pass_requirements` file.
 
     Absolute path or relative to ``$VTR_ROOT/vtr_flow/parse/pass_requirements/`` or ``$VTR_ROOT/vtr_flow/tasks/<task_name>/config/``

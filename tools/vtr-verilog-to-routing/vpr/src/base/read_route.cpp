@@ -126,7 +126,7 @@ bool read_route(const char* route_file, const t_router_opts& router_opts, bool v
     recompute_occupancy_from_scratch();
 
     /* Note: This pres_fac is not necessarily correct since it isn't the first routing iteration*/
-    OveruseInfo overuse_info(device_ctx.rr_nodes.size());
+    OveruseInfo overuse_info(device_ctx.rr_graph.num_nodes());
     pathfinder_update_acc_cost_and_overuse_info(router_opts.acc_fac, overuse_info);
 
     reserve_locally_used_opins(&small_heap, router_opts.initial_pres_fac,
@@ -209,6 +209,7 @@ static void process_nodes(std::ifstream& fp, ClusterNetId inet, const char* file
 
     auto& cluster_ctx = g_vpr_ctx.mutable_clustering();
     auto& device_ctx = g_vpr_ctx.mutable_device();
+    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.mutable_routing();
     auto& place_ctx = g_vpr_ctx.placement();
 
@@ -248,7 +249,6 @@ static void process_nodes(std::ifstream& fp, ClusterNetId inet, const char* file
         } else if (tokens[0] == "Node:") {
             /*An actual line, go through each node and add it to the route tree*/
             inode = atoi(tokens[1].c_str());
-            auto node = device_ctx.rr_nodes[inode];
 
             /*First node needs to be source. It is isolated to correctly set heap head.*/
             if (node_count == 0 && tokens[2] != "SOURCE") {
@@ -257,40 +257,41 @@ static void process_nodes(std::ifstream& fp, ClusterNetId inet, const char* file
             }
 
             /*Check node types if match rr graph*/
-            if (tokens[2] != node.type_string()) {
+            if (tokens[2] != rr_graph.node_type_string(RRNodeId(inode))) {
                 vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                           "Node %d has a type that does not match the RR graph", inode);
             }
 
             format_coordinates(x, y, tokens[3], inet, filename, lineno);
+            auto rr_node = RRNodeId(inode);
 
             if (tokens[4] == "to") {
                 format_coordinates(x2, y2, tokens[5], inet, filename, lineno);
-                if (node.xlow() != x || node.xhigh() != x2 || node.yhigh() != y2 || node.ylow() != y) {
+                if (rr_graph.node_xlow(rr_node) != x || rr_graph.node_xhigh(rr_node) != x2 || rr_graph.node_yhigh(rr_node) != y2 || rr_graph.node_ylow(rr_node) != y) {
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                               "The coordinates of node %d does not match the rr graph", inode);
                 }
                 offset = 2;
 
                 /* Check for connectivity, this throws an exception when a dangling net is encountered in the routing file */
-                bool legal_node = check_rr_graph_connectivity(prev_node, node.id());
+                bool legal_node = check_rr_graph_connectivity(prev_node, rr_node);
                 if (!legal_node) {
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno, "Dangling branch at net %lu, nodes %d -> %d: %s", inet, prev_node, inode, input.c_str());
                 }
-                prev_node = node.id();
+                prev_node = rr_node;
             } else {
-                if (node.xlow() != x || node.xhigh() != x || node.yhigh() != y || node.ylow() != y) {
+                if (rr_graph.node_xlow(rr_node) != x || rr_graph.node_xhigh(rr_node) != x || rr_graph.node_yhigh(rr_node) != y || rr_graph.node_ylow(rr_node) != y) {
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                               "The coordinates of node %d does not match the rr graph", inode);
                 }
                 offset = 0;
 
-                bool legal_node = check_rr_graph_connectivity(prev_node, node.id());
-                prev_node = node.id();
+                bool legal_node = check_rr_graph_connectivity(prev_node, rr_node);
+                prev_node = rr_node;
                 if (!legal_node) {
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno, "Dangling branch at net %lu, nodes %d -> %d: %s", inet, prev_node, inode, input.c_str());
                 }
-                prev_node = node.id();
+                prev_node = rr_node;
             }
 
             /* Verify types and ptc*/
@@ -307,7 +308,7 @@ static void process_nodes(std::ifstream& fp, ClusterNetId inet, const char* file
             }
 
             ptc = atoi(tokens[5 + offset].c_str());
-            if (node.ptc_num() != ptc) {
+            if (rr_graph.node_ptc_num(RRNodeId(inode)) != ptc) {
                 vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                           "The ptc num of node %d does not match the rr graph", inode);
             }
@@ -316,7 +317,7 @@ static void process_nodes(std::ifstream& fp, ClusterNetId inet, const char* file
             if (tokens[6 + offset] != "Switch:") {
                 /*This is an opin or ipin, process its pin nums*/
                 if (!is_io_type(device_ctx.grid[x][y].type) && (tokens[2] == "IPIN" || tokens[2] == "OPIN")) {
-                    int pin_num = device_ctx.rr_nodes[inode].ptc_num();
+                    int pin_num = rr_graph.node_pin_num(RRNodeId(inode));
 
                     auto type = device_ctx.grid[x][y].type;
                     int height_offset = device_ctx.grid[x][y].height_offset;
@@ -504,21 +505,19 @@ static bool check_rr_graph_connectivity(RRNodeId prev_node, RRNodeId node) {
     if (prev_node == node) return false;
 
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_nodes;
-    const auto& switch_info = device_ctx.rr_switch_inf;
-
+    const auto& rr_graph = device_ctx.rr_graph;
     // If it's starting a new sub branch this is ok
     if (rr_graph.node_type(prev_node) == SINK) return true;
 
     for (RREdgeId edge : rr_graph.edge_range(prev_node)) {
         //If the sink node is reachable by previous node return true
-        if (rr_graph.edge_sink_node(edge) == node) {
+        if (rr_graph.rr_nodes().edge_sink_node(edge) == node) {
             return true;
         }
 
         // If there are any non-configurable branches return true
-        short edge_switch = rr_graph.edge_switch(edge);
-        if (!(switch_info[edge_switch].configurable())) return true;
+        short edge_switch = rr_graph.rr_nodes().edge_switch(edge);
+        if (!(rr_graph.rr_switch_inf(RRSwitchId(edge_switch)).configurable())) return true;
     }
 
     // If it's part of a non configurable node list, return true

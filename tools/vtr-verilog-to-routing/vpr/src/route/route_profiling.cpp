@@ -152,8 +152,8 @@ void congestion_analysis() {
 	// print out specific node information if congestion for type is low enough
 
 	int total_congestion = 0;
-	for (int inode = 0; inode < device_ctx.rr_nodes.size(); ++inode) {
-		const t_rr_node& node = device_ctx.rr_nodes[inode];
+    for (const RRNodeId& rr_id : device_ctx.rr_graph.nodes()){
+		const t_rr_node& node = device_ctx.rr_nodes[(size_t)rr_id];
 		int congestion = node.get_occ() - node.get_capacity();
 
 		if (congestion > 0) {
@@ -175,8 +175,8 @@ void congestion_analysis() {
 	// specific print out each congested node
 	if (!congested.empty()) {
 		VTR_LOG("Specific congested nodes\nxlow ylow   type\n");
-		for (int inode = 0; inode < device_ctx.rr_nodes.size(); ++inode) {
-			const t_rr_node& node = device_ctx.rr_nodes[inode];
+        for (const RRNodeId& rr_id : device_ctx.rr_graph.nodes()){
+			const t_rr_node& node = device_ctx.rr_nodes[(size_t)rr_id];
 			if (congested.is_congested(node.type) && (node.get_occ() - node.get_capacity()) > 0) {
 				VTR_LOG("(%3d,%3d) %6s\n", node.get_xlow(), node.get_ylow(), node_typename[node.type]);
 			}
@@ -214,6 +214,7 @@ void conn_start() {
     conn_start_time = clock();
 }
 void conn_finish(int src_rr, int sink_rr, float criticality) {
+    const auto& device_ctx = g_vpr_ctx.device();
     float route_time = static_cast<float>(clock() - conn_start_time) / CLOCKS_PER_SEC;
     if (route_time > worst_conn_time) {
         worst_src_rr = src_rr;
@@ -223,16 +224,17 @@ void conn_finish(int src_rr, int sink_rr, float criticality) {
     }
 
     VTR_LOG("%s to %s (crit: %f) took %f\n",
-            describe_rr_node(src_rr).c_str(),
-            describe_rr_node(sink_rr).c_str(),
+            describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, src_rr).c_str(),
+            describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, sink_rr).c_str(),
             criticality,
             route_time);
 }
 void net_finish() {
     if (worst_conn_time > 0.f) {
+        const auto& device_ctx = g_vpr_ctx.device();
         VTR_LOG("Worst conn was %s to %s (crit: %f) took %f\n",
-                describe_rr_node(worst_src_rr).c_str(),
-                describe_rr_node(worst_sink_rr).c_str(),
+                describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, worst_src_rr).c_str(),
+                describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, worst_sink_rr).c_str(),
                 worst_crit,
                 worst_conn_time);
     }

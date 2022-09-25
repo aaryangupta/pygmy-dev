@@ -1,4 +1,4 @@
-#include "catch.hpp"
+#include "catch2/catch_test_macros.hpp"
 
 #include "vpr_api.h"
 #include "vpr_signal_handler.h"
@@ -16,7 +16,7 @@ namespace {
 // Route from source_node to sink_node, returning either the delay, or infinity if unroutable.
 static float do_one_route(int source_node, int sink_node, const t_router_opts& router_opts, const std::vector<t_segment_inf>& segment_inf) {
     auto& device_ctx = g_vpr_ctx.device();
-    auto& route_ctx = g_vpr_ctx.routing();
+    bool is_flat = router_opts.flat_routing;
 
     t_rt_node* rt_root = init_route_tree_to_source_no_net(source_node);
 
@@ -42,15 +42,18 @@ static float do_one_route(int source_node, int sink_node, const t_router_opts& r
         router_opts.lookahead_type,
         router_opts.write_router_lookahead,
         router_opts.read_router_lookahead,
-        segment_inf);
+        segment_inf,
+        is_flat);
 
     ConnectionRouter<BinaryHeap> router(
         device_ctx.grid,
         *router_lookahead,
-        device_ctx.rr_nodes,
+        device_ctx.rr_graph.rr_nodes(),
+        &device_ctx.rr_graph,
         device_ctx.rr_rc_data,
-        device_ctx.rr_switch_inf,
-        g_vpr_ctx.mutable_routing().rr_node_route_inf);
+        device_ctx.rr_graph.rr_switch(),
+        g_vpr_ctx.mutable_routing().rr_node_route_inf,
+        is_flat);
 
     // Find the cheapest route if possible.
     bool found_path;
@@ -79,21 +82,21 @@ static float do_one_route(int source_node, int sink_node, const t_router_opts& r
 // Find a source and a sink by walking edges.
 std::tuple<size_t, size_t, int> find_source_and_sink() {
     auto& device_ctx = g_vpr_ctx.device();
-    auto& rr_graph = device_ctx.rr_nodes;
+    auto& rr_graph = device_ctx.rr_graph;
 
     // Current longest walk
     std::tuple<size_t, size_t, int> longest = std::make_tuple(0, 0, 0);
 
     // Start from each RR node
-    for (size_t id = 0; id < rr_graph.size(); id++) {
+    for (size_t id = 0; id < rr_graph.num_nodes(); id++) {
         RRNodeId source(id), sink = source;
         for (int hops = 0; hops < kMaxHops; hops++) {
             // Take the first edge, if there is one.
-            auto edge = rr_graph.first_edge(sink);
-            if (edge == rr_graph.last_edge(sink)) {
+            auto edge = rr_graph.node_first_edge(sink);
+            if (edge == rr_graph.node_last_edge(sink)) {
                 break;
             }
-            sink = rr_graph.edge_sink_node(edge);
+            sink = rr_graph.rr_nodes().edge_sink_node(edge);
 
             // If this is the new longest walk, store it.
             if (hops > std::get<2>(longest)) {
@@ -127,7 +130,17 @@ TEST_CASE("connection_router", "[vpr]") {
 
     vpr_create_device_grid(vpr_setup, arch);
     vpr_setup_clock_networks(vpr_setup, arch);
-    auto chan_width = init_chan(vpr_setup.RouterOpts.fixed_channel_width, arch.Chans);
+    auto det_routing_arch = &vpr_setup.RoutingArch;
+    auto& router_opts = vpr_setup.RouterOpts;
+    t_graph_type graph_directionality;
+
+    if (router_opts.route_type == GLOBAL) {
+        graph_directionality = GRAPH_BIDIR;
+    } else {
+        graph_directionality = (det_routing_arch->directionality == BI_DIRECTIONAL ? GRAPH_BIDIR : GRAPH_UNIDIR);
+    }
+
+    auto chan_width = init_chan(vpr_setup.RouterOpts.fixed_channel_width, arch.Chans, graph_directionality);
 
     alloc_routing_structs(
         chan_width,
@@ -158,6 +171,10 @@ TEST_CASE("connection_router", "[vpr]") {
     // Clean up
     free_routing_structs();
     vpr_free_all(arch, vpr_setup);
+
+    auto& atom_ctx = g_vpr_ctx.mutable_atom();
+    free_pack_molecules(atom_ctx.list_of_pack_molecules.release());
+    atom_ctx.atom_molecules.clear();
 }
 
 } // namespace
