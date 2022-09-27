@@ -48,6 +48,7 @@ cd ~
 #Create directory for building the toolchain
 mkdir -p ~/symbiflow
 export INSTALL_DIR=~/symbiflow
+apt install curl
 
 #Download and extract symbiflow OR copy from another source
 # Latest: curl $(curl https://storage.googleapis.com/symbiflow-arch-defs-install/latest) > ~/arch.tar.gz
