@@ -1,5 +1,0 @@
-#LeakSanitizer supporession file for VPR
-
-#Leak from graphics (ezgl/cairo) related to
-# text processing
-leak:libfontconfig.so

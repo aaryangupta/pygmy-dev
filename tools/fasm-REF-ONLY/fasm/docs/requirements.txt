@@ -1,9 +1,0 @@
-http://github.com/SymbiFlow/sphinx_symbiflow_theme/archive/chips.zip#sphinx-symbiflow-theme
-
-docutils
-sphinx
-sphinx-autobuild
-
-breathe
-sphinx-markdown-tables
-sphinxcontrib-napoleon

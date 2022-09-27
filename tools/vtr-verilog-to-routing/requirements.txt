@@ -1,5 +1,0 @@
-black
-prettytable
-pylint
-lxml
-psutil
