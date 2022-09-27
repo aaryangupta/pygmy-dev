@@ -1,0 +1,2 @@
+fasm
+-e git://github.com/QuickLogic-Corp/quicklogic-fasm-utils#egg=fasm-utils
