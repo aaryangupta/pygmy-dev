@@ -23,10 +23,6 @@
 #define _GNU_SOURCE
 #endif
 
-#if _WIN32
-#include "win32-api-version.h"
-#endif
-
 #include "main.h"
 #include "debug.h"
 #include "arena.h"
@@ -38,6 +34,10 @@
 #include <limits.h>
 
 #if _WIN32
+#define WIN32_LEAN_AND_MEAN
+#ifndef NOMINMAX
+#define NOMINMAX 1
+#endif
 #include <windows.h>
 #include "windows-sanity.h"
 #else

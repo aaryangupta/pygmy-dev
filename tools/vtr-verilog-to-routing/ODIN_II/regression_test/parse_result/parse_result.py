@@ -60,11 +60,6 @@ def success_line(key):
     return colored(output[:_LEN], "green") + " " + key
 
 
-def expected_fail(key):
-    output = "  Expected Failure " + _FILLER_LINE
-    return colored(output[:_LEN], "orange") + " " + key
-
-
 def mismatch_str(header, expected, got):
     header = "{0:<{1}}".format("- " + header, _LEN)
     expected = colored("[-" + str(expected) + "-]", "red")
@@ -680,10 +675,7 @@ def _compare(toml_file_name, golden_result_file_name, result_file_name, diff_fil
             if key not in tbl and SUBSET:
                 pass
             else:
-                if golden_tbl[key]["exit"]:
-                    print(expected_fail(key))
-                else:
-                    print(success_line(key))
+                print(success_line(key))
 
     # add the new entries
     for key in tbl:

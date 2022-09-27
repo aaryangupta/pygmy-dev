@@ -9,7 +9,7 @@
 #include "vpr_error.h"
 
 #include "globals.h"
-#include "rr_graph_utils.h"
+#include "rr_graph_util.h"
 #include "rr_graph2.h"
 #include "rr_graph.h"
 #include "rr_graph_sbox.h"
@@ -17,6 +17,7 @@
 #include "rr_types.h"
 
 constexpr short UN_SET = -1;
+
 /************************** Subroutines local to this module ****************/
 
 static void get_switch_type(bool is_from_sb,
@@ -31,49 +32,15 @@ static void load_chan_rr_indices(const int max_chan_width,
                                  const int num_chans,
                                  const t_rr_type type,
                                  const t_chan_details& chan_details,
-                                 RRGraphBuilder& rr_graph_builder,
+                                 t_rr_node_indices& indices,
                                  int* index);
 
-static void load_block_rr_indices(RRGraphBuilder& rr_graph_builder,
-                                  const DeviceGrid& grid,
-                                  int* index,
-                                  bool is_flat);
+static void load_block_rr_indices(const DeviceGrid& grid,
+                                  t_rr_node_indices& indices,
+                                  int* index);
 
-static void add_tile_pins_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                         const DeviceGrid& grid,
-                                         int x,
-                                         int y,
-                                         int* index,
-                                         const std::vector<e_side>& wanted_sides);
-
-static void assign_tile_pins_indices(RRGraphBuilder& rr_graph_builder,
-                                     const DeviceGrid& grid,
-                                     int x,
-                                     int y,
-                                     int* index,
-                                     const std::vector<e_side>& wanted_sides);
-
-static void add_tile_sink_src_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                             const DeviceGrid& grid,
-                                             int x,
-                                             int y,
-                                             int* index);
-
-static void add_intra_src_sink_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                              ClusterBlockId cluster_blk_id,
-                                              int x,
-                                              int y,
-                                              int* index);
-
-static void add_intra_ipin_opin_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                               ClusterBlockId cluster_blk_id,
-                                               const DeviceGrid& grid,
-                                               int x,
-                                               int y,
-                                               int* index);
-
-static int get_bidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
-                                       const std::vector<int> conn_tracks,
+static int get_bidir_track_to_chan_seg(const std::vector<int> conn_tracks,
+                                       const t_rr_node_indices& L_rr_node_indices,
                                        const int to_chan,
                                        const int to_seg,
                                        const int to_sb,
@@ -83,11 +50,10 @@ static int get_bidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
                                        const int from_switch,
                                        const int switch_override,
                                        const enum e_directionality directionality,
-                                       RRNodeId from_rr_node,
+                                       const int from_rr_node,
                                        t_rr_edge_info_set& rr_edges_to_create);
 
-static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
-                                        const int from_track,
+static int get_unidir_track_to_chan_seg(const int from_track,
                                         const int to_chan,
                                         const int to_seg,
                                         const int to_sb,
@@ -99,21 +65,23 @@ static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
                                         const int Fs_per_side,
                                         t_sblock_pattern& sblock_pattern,
                                         const int switch_override,
+                                        const t_rr_node_indices& L_rr_node_indices,
                                         const t_chan_seg_details* seg_details,
                                         bool* Fs_clipped,
-                                        RRNodeId from_rr_node,
-                                        t_rr_edge_info_set& rr_edges_to_create);
+                                        const int from_rr_node,
+                                        t_rr_edge_info_set& rr_edges_to_create,
+                                        t_opin_connections_scratchpad* scratchpad);
 
-static int get_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
-                                 const int from_track,
+static int get_track_to_chan_seg(const int from_track,
                                  const int to_chan,
                                  const int to_seg,
                                  const t_rr_type to_chan_type,
                                  const e_side from_side,
                                  const e_side to_side,
                                  const int swtich_override,
+                                 const t_rr_node_indices& L_rr_node_indices,
                                  t_sb_connection_map* sb_conn_map,
-                                 RRNodeId from_rr_node,
+                                 const int from_rr_node,
                                  t_rr_edge_info_set& rr_edges_to_create);
 
 static int vpr_to_phy_track(const int itrack,
@@ -127,10 +95,10 @@ static void label_wire_muxes(const int chan_num,
                              const t_chan_seg_details* seg_details,
                              const int seg_type_index,
                              const int max_len,
-                             const enum Direction dir,
+                             const enum e_direction dir,
                              const int max_chan_width,
                              const bool check_cb,
-                             std::vector<int>& labels,
+                             std::vector<int>* labels,
                              int* num_wire_muxes,
                              int* num_wire_muxes_cb_restricted);
 
@@ -139,13 +107,13 @@ static void label_incoming_wires(const int chan_num,
                                  const int sb_seg,
                                  const t_chan_seg_details* seg_details,
                                  const int max_len,
-                                 const enum Direction dir,
+                                 const enum e_direction dir,
                                  const int max_chan_width,
-                                 std::vector<int>& labels,
+                                 std::vector<int>* labels,
                                  int* num_incoming_wires,
                                  int* num_ending_wires);
 
-static int find_label_of_track(const std::vector<int>& wire_mux_on_track,
+static int find_label_of_track(int* wire_mux_on_track,
                                int num_wire_muxes,
                                int from_track);
 
@@ -238,59 +206,11 @@ std::unique_ptr<int[]> get_seg_track_counts(const int num_sets,
     return result;
 }
 
-int get_parallel_seg_index(const int abs_index,
-                           const t_unified_to_parallel_seg_index& index_map,
-                           const e_parallel_axis parallel_axis) {
-    int index = -1;
-    auto itr_pair = index_map.equal_range(abs_index);
-
-    for (auto itr = itr_pair.first; itr != itr_pair.second; ++itr) {
-        if (itr->second.second == parallel_axis) {
-            index = itr->second.first;
-        }
-    }
-
-    return index;
-}
-
-/*  Returns an array of tracks per segment, with matching indices to segment_inf by combining               *
- * sets per segment for each direction. This is a helper function to avoid having to refactor              *
- * alot of the functions inside rr_graph.cpp & rr_graph2.cpp to model different horizontal and vertical    *
- * channel widths.                                                                                          */
-std::unique_ptr<int[]> get_ordered_seg_track_counts(const std::vector<t_segment_inf>& segment_inf_x,
-                                                    const std::vector<t_segment_inf>& segment_inf_y,
-                                                    const std::vector<t_segment_inf>& segment_inf,
-                                                    const std::unique_ptr<int[]>& segment_sets_x,
-                                                    const std::unique_ptr<int[]>& segment_sets_y) {
-    std::unordered_map<t_segment_inf, int, t_hash_segment_inf> all_segs_index;
-    std::unique_ptr<int[]> ordered_seg_track_counts;
-    ordered_seg_track_counts = std::make_unique<int[]>(segment_inf.size());
-
-    for (size_t iseg = 0; iseg < segment_inf.size(); ++iseg) {
-        all_segs_index.insert(std::make_pair(segment_inf[iseg], iseg));
-    }
-    for (size_t iseg_x = 0; iseg_x < segment_inf_x.size(); ++iseg_x) {
-        VTR_ASSERT_MSG(all_segs_index.find(segment_inf_x[iseg_x]) != all_segs_index.end(),
-                       "Segment in the x-direction must be a part of all segments.");
-
-        ordered_seg_track_counts[all_segs_index.find(segment_inf_x[iseg_x])->second] = segment_sets_x[iseg_x];
-    }
-    for (size_t iseg_y = 0; iseg_y < segment_inf_y.size(); ++iseg_y) {
-        if (segment_inf_y[iseg_y].parallel_axis == BOTH_AXIS) { /*Avoid counting segments in both horizontal and vertical direction twice*/
-            continue;
-        }
-        VTR_ASSERT_MSG(all_segs_index.find(segment_inf_x[iseg_y]) != all_segs_index.end(),
-                       "Segment in the y-direction must be a part of all segments.");
-        ordered_seg_track_counts[all_segs_index.find(segment_inf_y[iseg_y])->second] = segment_sets_y[iseg_y];
-    }
-
-    return ordered_seg_track_counts;
-}
-
 t_seg_details* alloc_and_load_seg_details(int* max_chan_width,
                                           const int max_len,
                                           const std::vector<t_segment_inf>& segment_inf,
                                           const bool use_full_seg_groups,
+                                          const bool is_global_graph,
                                           const enum e_directionality directionality,
                                           int* num_seg_details) {
     /* Allocates and loads the seg_details data structure.  Max_len gives the   *
@@ -395,7 +315,7 @@ t_seg_details* alloc_and_load_seg_details(int* max_chan_width,
             seg_details[cur_track].cb = std::make_unique<bool[]>(length);
             seg_details[cur_track].sb = std::make_unique<bool[]>(length + 1);
             for (j = 0; j < length; ++j) {
-                if (seg_details[cur_track].longline) {
+                if (is_global_graph || seg_details[cur_track].longline) {
                     seg_details[cur_track].cb[j] = true;
                 } else {
                     /* Use the segment's pattern. */
@@ -404,7 +324,7 @@ t_seg_details* alloc_and_load_seg_details(int* max_chan_width,
                 }
             }
             for (j = 0; j < (length + 1); ++j) {
-                if (seg_details[cur_track].longline) {
+                if (is_global_graph || seg_details[cur_track].longline) {
                     seg_details[cur_track].sb[j] = true;
                 } else {
                     /* Use the segment's pattern. */
@@ -421,14 +341,13 @@ t_seg_details* alloc_and_load_seg_details(int* max_chan_width,
             seg_details[cur_track].arch_opin_switch = arch_opin_switch;
 
             if (BI_DIRECTIONAL == directionality) {
-                seg_details[cur_track].direction = Direction::BIDIR;
+                seg_details[cur_track].direction = BI_DIRECTION;
             } else {
                 VTR_ASSERT(UNI_DIRECTIONAL == directionality);
-                seg_details[cur_track].direction = (itrack % 2) ? Direction::DEC : Direction::INC;
+                seg_details[cur_track].direction = (itrack % 2) ? DEC_DIRECTION : INC_DIRECTION;
             }
 
             seg_details[cur_track].index = i;
-            seg_details[cur_track].abs_index = segment_inf[i].seg_index;
 
             ++cur_track;
         }
@@ -446,16 +365,14 @@ t_seg_details* alloc_and_load_seg_details(int* max_chan_width,
 
 void alloc_and_load_chan_details(const DeviceGrid& grid,
                                  const t_chan_width* nodes_per_chan,
-                                 const int num_seg_details_x,
-                                 const int num_seg_details_y,
-                                 const t_seg_details* seg_details_x,
-                                 const t_seg_details* seg_details_y,
+                                 const int num_seg_details,
+                                 const t_seg_details* seg_details,
                                  t_chan_details& chan_details_x,
                                  t_chan_details& chan_details_y) {
     chan_details_x = init_chan_details(grid, nodes_per_chan,
-                                       num_seg_details_x, seg_details_x, X_AXIS);
+                                       num_seg_details, seg_details, SEG_DETAILS_X);
     chan_details_y = init_chan_details(grid, nodes_per_chan,
-                                       num_seg_details_y, seg_details_y, Y_AXIS);
+                                       num_seg_details, seg_details, SEG_DETAILS_Y);
 
     /* Adjust segment start/end based on obstructed channels, if any */
     adjust_chan_details(grid, nodes_per_chan,
@@ -466,12 +383,8 @@ t_chan_details init_chan_details(const DeviceGrid& grid,
                                  const t_chan_width* nodes_per_chan,
                                  const int num_seg_details,
                                  const t_seg_details* seg_details,
-                                 const enum e_parallel_axis seg_parallel_axis) {
-    if (seg_parallel_axis == X_AXIS) {
-        VTR_ASSERT(num_seg_details <= nodes_per_chan->x_max);
-    } else if (seg_parallel_axis == Y_AXIS) {
-        VTR_ASSERT(num_seg_details <= nodes_per_chan->y_max);
-    }
+                                 const enum e_seg_details_type seg_details_type) {
+    VTR_ASSERT(num_seg_details <= nodes_per_chan->max);
 
     t_chan_details chan_details({grid.width(), grid.height(), size_t(num_seg_details)});
 
@@ -484,10 +397,11 @@ t_chan_details init_chan_details(const DeviceGrid& grid,
                 int seg_start = -1;
                 int seg_end = -1;
 
-                if (seg_parallel_axis == X_AXIS) {
+                if (seg_details_type == SEG_DETAILS_X) {
                     seg_start = get_seg_start(p_seg_details, i, y, x);
                     seg_end = get_seg_end(p_seg_details, i, seg_start, y, grid.width() - 2); //-2 for no perim channels
-                } else if (seg_parallel_axis == Y_AXIS) {
+                }
+                if (seg_details_type == SEG_DETAILS_Y) {
                     seg_start = get_seg_start(p_seg_details, i, x, y);
                     seg_end = get_seg_end(p_seg_details, i, seg_start, x, grid.height() - 2); //-2 for no perim channels
                 }
@@ -495,11 +409,12 @@ t_chan_details init_chan_details(const DeviceGrid& grid,
                 p_seg_details[i].set_seg_start(seg_start);
                 p_seg_details[i].set_seg_end(seg_end);
 
-                if (seg_parallel_axis == X_AXIS) {
+                if (seg_details_type == SEG_DETAILS_X) {
                     if (i >= nodes_per_chan->x_list[y]) {
                         p_seg_details[i].set_length(0);
                     }
-                } else if (seg_parallel_axis == Y_AXIS) {
+                }
+                if (seg_details_type == SEG_DETAILS_Y) {
                     if (i >= nodes_per_chan->y_list[x]) {
                         p_seg_details[i].set_length(0);
                     }
@@ -522,7 +437,7 @@ void adjust_chan_details(const DeviceGrid& grid,
                 continue;
 
             adjust_seg_details(x, y, grid, nodes_per_chan,
-                               chan_details_x, X_AXIS);
+                               chan_details_x, SEG_DETAILS_X);
         }
     }
 
@@ -534,7 +449,7 @@ void adjust_chan_details(const DeviceGrid& grid,
                 continue;
 
             adjust_seg_details(x, y, grid, nodes_per_chan,
-                               chan_details_y, Y_AXIS);
+                               chan_details_y, SEG_DETAILS_Y);
         }
     }
 }
@@ -544,43 +459,34 @@ void adjust_seg_details(const int x,
                         const DeviceGrid& grid,
                         const t_chan_width* nodes_per_chan,
                         t_chan_details& chan_details,
-                        const enum e_parallel_axis seg_parallel_axis) {
-    int seg_index = (seg_parallel_axis == X_AXIS ? x : y);
-    int max_chan_width = 0;
-    if (seg_parallel_axis == X_AXIS) {
-        max_chan_width = nodes_per_chan->x_max;
-    } else if (seg_parallel_axis == Y_AXIS) {
-        max_chan_width = nodes_per_chan->y_max;
-    } else {
-        VTR_ASSERT(seg_parallel_axis == BOTH_AXIS);
-        max_chan_width = nodes_per_chan->max;
-    }
+                        const enum e_seg_details_type seg_details_type) {
+    int seg_index = (seg_details_type == SEG_DETAILS_X ? x : y);
 
-    for (int track = 0; track < max_chan_width; ++track) {
-        int lx = (seg_parallel_axis == X_AXIS ? x - 1 : x);
-        int ly = (seg_parallel_axis == X_AXIS ? y : y - 1);
+    for (int track = 0; track < nodes_per_chan->max; ++track) {
+        int lx = (seg_details_type == SEG_DETAILS_X ? x - 1 : x);
+        int ly = (seg_details_type == SEG_DETAILS_X ? y : y - 1);
         if (lx < 0 || ly < 0 || chan_details[lx][ly][track].length() == 0)
             continue;
 
         while (chan_details[lx][ly][track].seg_end() >= seg_index) {
             chan_details[lx][ly][track].set_seg_end(seg_index - 1);
-            lx = (seg_parallel_axis == X_AXIS ? lx - 1 : lx);
-            ly = (seg_parallel_axis == X_AXIS ? ly : ly - 1);
+            lx = (seg_details_type == SEG_DETAILS_X ? lx - 1 : lx);
+            ly = (seg_details_type == SEG_DETAILS_X ? ly : ly - 1);
             if (lx < 0 || ly < 0 || chan_details[lx][ly][track].length() == 0)
                 break;
         }
     }
 
-    for (int track = 0; track < max_chan_width; ++track) {
-        size_t lx = (seg_parallel_axis == X_AXIS ? x + 1 : x);
-        size_t ly = (seg_parallel_axis == X_AXIS ? y : y + 1);
+    for (int track = 0; track < nodes_per_chan->max; ++track) {
+        size_t lx = (seg_details_type == SEG_DETAILS_X ? x + 1 : x);
+        size_t ly = (seg_details_type == SEG_DETAILS_X ? y : y + 1);
         if (lx > grid.width() - 2 || ly > grid.height() - 2 || chan_details[lx][ly][track].length() == 0) //-2 for no perim channels
             continue;
 
         while (chan_details[lx][ly][track].seg_start() <= seg_index) {
             chan_details[lx][ly][track].set_seg_start(seg_index + 1);
-            lx = (seg_parallel_axis == X_AXIS ? lx + 1 : lx);
-            ly = (seg_parallel_axis == X_AXIS ? ly : ly + 1);
+            lx = (seg_details_type == SEG_DETAILS_X ? lx + 1 : lx);
+            ly = (seg_details_type == SEG_DETAILS_X ? ly : ly + 1);
             if (lx > grid.width() - 2 || ly > grid.height() - 2 || chan_details[lx][ly][track].length() == 0) //-2 for no perim channels
                 break;
         }
@@ -664,17 +570,17 @@ int get_seg_end(const t_chan_seg_details* seg_details, const int itrack, const i
 
 /* Returns the number of tracks to which clb opin #ipin at (i,j) connects.   *
  * Also stores the nodes to which this pin connects in rr_edges_to_create    */
-int get_bidir_opin_connections(RRGraphBuilder& rr_graph_builder,
-                               const int i,
+int get_bidir_opin_connections(const int i,
                                const int j,
                                const int ipin,
-                               RRNodeId from_rr_node,
+                               const int from_rr_node,
                                t_rr_edge_info_set& rr_edges_to_create,
                                const t_pin_to_track_lookup& opin_to_track_map,
+                               const t_rr_node_indices& L_rr_node_indices,
                                const t_chan_details& chan_details_x,
                                const t_chan_details& chan_details_y) {
     int num_conn, tr_i, tr_j, chan, seg;
-    int to_switch;
+    int to_switch, to_node;
     int is_connected_track;
     t_physical_tile_type_ptr type;
     t_rr_type to_type;
@@ -733,9 +639,9 @@ int get_bidir_opin_connections(RRGraphBuilder& rr_graph_builder,
             /* Only connect to wire if there is a CB */
             if (is_cblock(chan, seg, to_track, seg_details)) {
                 to_switch = seg_details[to_track].arch_wire_switch();
-                RRNodeId to_node = rr_graph_builder.node_lookup().find_node(tr_i, tr_j, to_type, to_track);
+                to_node = get_rr_node_index(L_rr_node_indices, tr_i, tr_j, to_type, to_track);
 
-                if (!to_node) {
+                if (to_node == OPEN) {
                     continue;
                 }
 
@@ -748,31 +654,25 @@ int get_bidir_opin_connections(RRGraphBuilder& rr_graph_builder,
     return num_conn;
 }
 
-/* AA: Actually builds the edges from the OPIN nodes already allocated to their correct tracks for segment seg_Inf[seg_type_index]. 
- * Note that this seg_inf vector is NOT the segment_info vectored as stored in the device variable. This index is w.r.t to seg_inf_x
- * or seg_inf_y for x-adjacent and y-adjacent segments respectively. This index is assigned in get_seg_details earlier 
- * in the rr_graph_builder routine. This t_seg_detail is then used to build t_chan_seg_details which is passed in to label_wire mux
- * routine used in this function. 
- *
- * 
- */
-int get_unidir_opin_connections(RRGraphBuilder& rr_graph_builder,
-                                const int chan,
+int get_unidir_opin_connections(const int chan,
                                 const int seg,
                                 int Fc,
                                 const int seg_type_index,
                                 const t_rr_type chan_type,
                                 const t_chan_seg_details* seg_details,
-                                RRNodeId from_rr_node,
+                                const int from_rr_node,
                                 t_rr_edge_info_set& rr_edges_to_create,
                                 vtr::NdMatrix<int, 3>& Fc_ofs,
                                 const int max_len,
-                                const t_chan_width& nodes_per_chan,
-                                bool* Fc_clipped) {
+                                const int max_chan_width,
+                                const t_rr_node_indices& L_rr_node_indices,
+                                bool* Fc_clipped,
+                                t_opin_connections_scratchpad* scratchpad) {
     /* Gets a linked list of Fc nodes of specified seg_type_index to connect
      * to in given chan seg. Fc_ofs is used for the opin staggering pattern. */
 
     int num_inc_muxes, num_dec_muxes, iconn;
+    int inc_inode_index, dec_inode_index;
     int inc_mux, dec_mux;
     int inc_track, dec_track;
     int x, y;
@@ -789,15 +689,13 @@ int get_unidir_opin_connections(RRGraphBuilder& rr_graph_builder,
 
     /* Get the lists of possible muxes. */
     int dummy;
-    std::vector<int> inc_muxes;
-    std::vector<int> dec_muxes;
-    /* AA: Determine the channel width instead of using max channels to not create hanging nodes*/
-    int max_chan_width = (CHANX == chan_type) ? nodes_per_chan.x_list[y] : nodes_per_chan.y_list[x];
+    std::vector<int>& inc_muxes = scratchpad->scratch[0];
+    std::vector<int>& dec_muxes = scratchpad->scratch[1];
 
     label_wire_muxes(chan, seg, seg_details, seg_type_index, max_len,
-                     Direction::INC, max_chan_width, true, inc_muxes, &num_inc_muxes, &dummy);
+                     INC_DIRECTION, max_chan_width, true, &inc_muxes, &num_inc_muxes, &dummy);
     label_wire_muxes(chan, seg, seg_details, seg_type_index, max_len,
-                     Direction::DEC, max_chan_width, true, dec_muxes, &num_dec_muxes, &dummy);
+                     DEC_DIRECTION, max_chan_width, true, &dec_muxes, &num_dec_muxes, &dummy);
 
     /* Clip Fc to the number of muxes. */
     if (((Fc / 2) > num_inc_muxes) || ((Fc / 2) > num_dec_muxes)) {
@@ -818,10 +716,10 @@ int get_unidir_opin_connections(RRGraphBuilder& rr_graph_builder,
         dec_track = dec_muxes[dec_mux];
 
         /* Figure the inodes of those muxes */
-        RRNodeId inc_inode_index = rr_graph_builder.node_lookup().find_node(x, y, chan_type, inc_track);
-        RRNodeId dec_inode_index = rr_graph_builder.node_lookup().find_node(x, y, chan_type, dec_track);
+        inc_inode_index = get_rr_node_index(L_rr_node_indices, x, y, chan_type, inc_track);
+        dec_inode_index = get_rr_node_index(L_rr_node_indices, x, y, chan_type, dec_track);
 
-        if (!inc_inode_index || !dec_inode_index) {
+        if (inc_inode_index == OPEN || dec_inode_index == OPEN) {
             continue;
         }
 
@@ -850,7 +748,7 @@ bool is_cblock(const int chan, const int seg, const int track, const t_chan_seg_
     VTR_ASSERT(ofs < length);
 
     /* If unidir segment that is going backwards, we need to flip the ofs */
-    if (Direction::DEC == seg_details[track].direction()) {
+    if (DEC_DIRECTION == seg_details[track].direction()) {
         ofs = (length - 1) - ofs;
     }
 
@@ -880,7 +778,7 @@ void dump_seg_details(const t_chan_seg_details* seg_details,
                 seg_details[i].Rmetal(), seg_details[i].Cmetal());
 
         fprintf(fp, "direction: %s\n",
-                DIRECTION_STRING[static_cast<int>(seg_details[i].direction())]);
+                DIRECTION_STRING[seg_details[i].direction()]);
 
         fprintf(fp, "cb list:  ");
         for (int j = 0; j < seg_details[i].length(); j++)
@@ -910,24 +808,20 @@ void dump_seg_details(const t_chan_seg_details* seg_details,
  * only for debugging.                                                      */
 void dump_chan_details(const t_chan_details& chan_details_x,
                        const t_chan_details& chan_details_y,
-                       const t_chan_width* nodes_per_chan,
+                       int max_chan_width,
                        const DeviceGrid& grid,
                        const char* fname) {
     FILE* fp = vtr::fopen(fname, "w");
     if (fp) {
-        fprintf(fp, "************************\n");
-        fprintf(fp, "max_chan_width= %d | max_chan_width_y= %d | max_chan_width_x= %d", nodes_per_chan->max, nodes_per_chan->y_max, nodes_per_chan->x_max);
-        fprintf(fp, "************************\n");
         for (size_t y = 0; y <= grid.height() - 2; ++y) {    //-2 for no perim channels
             for (size_t x = 0; x <= grid.width() - 2; ++x) { //-2 for no perim channels
 
                 fprintf(fp, "========================\n");
                 fprintf(fp, "chan_details_x: [%zu][%zu]\n", x, y);
-                fprintf(fp, "channel_width: %d\n", nodes_per_chan->x_list[y]);
                 fprintf(fp, "========================\n");
 
                 const t_chan_seg_details* seg_details = chan_details_x[x][y].data();
-                dump_seg_details(seg_details, nodes_per_chan->x_max, fp);
+                dump_seg_details(seg_details, max_chan_width, fp);
             }
         }
         for (size_t x = 0; x <= grid.width() - 2; ++x) {      //-2 for no perim channels
@@ -935,11 +829,10 @@ void dump_chan_details(const t_chan_details& chan_details_x,
 
                 fprintf(fp, "========================\n");
                 fprintf(fp, "chan_details_y: [%zu][%zu]\n", x, y);
-                fprintf(fp, "channel_width: %d\n", nodes_per_chan->y_list[x]);
                 fprintf(fp, "========================\n");
 
                 const t_chan_seg_details* seg_details = chan_details_y[x][y].data();
-                dump_seg_details(seg_details, nodes_per_chan->y_max, fp);
+                dump_seg_details(seg_details, max_chan_width, fp);
             }
         }
     }
@@ -1029,38 +922,24 @@ void dump_sblock_pattern(const t_sblock_pattern& sblock_pattern,
     fclose(fp);
 }
 
-void dump_track_to_pin_map(t_track_to_pin_lookup& track_to_pin_map,
-                           const std::vector<t_physical_tile_type>& types,
-                           int max_chan_width,
-                           FILE* fp) {
-    if (fp) {
-        for (unsigned int i = 0; i < types.size(); i++) {
-            if (!track_to_pin_map[i].empty()) {
-                for (int track = 0; track < max_chan_width; ++track) {
-                    for (int width = 0; width < types[i].width; ++width) {
-                        for (int height = 0; height < types[i].height; ++height) {
-                            for (int side = 0; side < 4; ++side) {
-                                fprintf(fp, "\nTYPE:%s width:%d height:%d\n", types[i].name, width, height);
-                                fprintf(fp, "\nSIDE:%d TRACK:%d \n", side, track);
-                                for (size_t con = 0; con < track_to_pin_map[i][track][width][height][side].size(); con++) {
-                                    fprintf(fp, "%d ", track_to_pin_map[i][track][width][height][side][con]);
-                                }
-                                fprintf(fp, "=====================\n");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 static void load_chan_rr_indices(const int max_chan_width,
                                  const int chan_len,
                                  const int num_chans,
                                  const t_rr_type type,
                                  const t_chan_details& chan_details,
-                                 RRGraphBuilder& rr_graph_builder,
+                                 t_rr_node_indices& indices,
                                  int* index) {
+    VTR_ASSERT(indices[type].dim_size(0) == size_t(num_chans));
+    VTR_ASSERT(indices[type].dim_size(1) == size_t(chan_len));
+    VTR_ASSERT(indices[type].dim_size(2) == NUM_SIDES);
+    for (int chan = 0; chan < num_chans - 1; ++chan) {
+        for (int seg = 1; seg < chan_len - 1; ++seg) {
+            /* Alloc the track inode lookup list */
+            //Since channels have no side, we just use the first side
+            indices[type][chan][seg][0].resize(max_chan_width, OPEN);
+        }
+    }
+
     for (int chan = 0; chan < num_chans - 1; ++chan) {
         for (int seg = 1; seg < chan_len - 1; ++seg) {
             /* Assign an inode to the starts of tracks */
@@ -1068,56 +947,55 @@ static void load_chan_rr_indices(const int max_chan_width,
             int y = (type == CHANX ? chan : seg);
             const t_chan_seg_details* seg_details = chan_details[x][y].data();
 
-            /* Reserve nodes in lookup to save memory */
-            rr_graph_builder.node_lookup().reserve_nodes(chan, seg, type, max_chan_width);
-
-            for (int track = 0; track < max_chan_width; ++track) {
-                /* TODO: May let the length() == 0 case go through, to model muxes */
+            for (unsigned track = 0; track < indices[type][chan][seg][0].size(); ++track) {
                 if (seg_details[track].length() <= 0)
                     continue;
 
                 int start = get_seg_start(seg_details, track, chan, seg);
 
-                /* TODO: Now we still use the (y, x) convention here for CHANX. Should rework later */
-                int node_x = chan;
-                int node_y = start;
-                if (CHANX == type) {
-                    std::swap(node_x, node_y);
-                }
-
                 /* If the start of the wire doesn't have a inode,
                  * assign one to it. */
-                RRNodeId inode = rr_graph_builder.node_lookup().find_node(node_x, node_y, type, track);
-                if (!inode) {
-                    inode = RRNodeId(*index);
+                int inode = indices[type][chan][start][0][track];
+                if (OPEN == inode) {
+                    inode = *index;
                     ++(*index);
 
-                    rr_graph_builder.node_lookup().add_node(inode, chan, start, type, track);
+                    indices[type][chan][start][0][track] = inode;
                 }
 
                 /* Assign inode of start of wire to current position */
-                rr_graph_builder.node_lookup().add_node(inode, chan, seg, type, track);
+                indices[type][chan][seg][0][track] = inode;
             }
         }
     }
 }
 
-/* As the rr_indices builders modify a local copy of indices, use the local copy in the builder 
- * TODO: these building functions should only talk to a RRGraphBuilder object
- */
-static void load_block_rr_indices(RRGraphBuilder& rr_graph_builder,
-                                  const DeviceGrid& grid,
-                                  int* index,
-                                  bool is_flat) {
+static void load_block_rr_indices(const DeviceGrid& grid,
+                                  t_rr_node_indices& indices,
+                                  int* index) {
     //Walk through the grid assigning indices to SOURCE/SINK IPIN/OPIN
-
     for (size_t x = 0; x < grid.width(); x++) {
         for (size_t y = 0; y < grid.height(); y++) {
-            //Process each block from it's root location
             if (grid[x][y].width_offset == 0 && grid[x][y].height_offset == 0) {
+                //Process each block from it's root location
+                auto type = grid[x][y].type;
+
                 //Assign indices for SINKs and SOURCEs
                 // Note that SINKS/SOURCES have no side, so we always use side 0
-                add_tile_sink_src_spatial_lookup(rr_graph_builder, grid, x, y, index);
+                for (const auto& class_inf : type->class_inf) {
+                    auto class_type = class_inf.type;
+                    if (class_type == DRIVER) {
+                        indices[SOURCE][x][y][0].push_back(*index);
+                        indices[SINK][x][y][0].push_back(OPEN);
+                    } else {
+                        VTR_ASSERT(class_type == RECEIVER);
+                        indices[SINK][x][y][0].push_back(*index);
+                        indices[SOURCE][x][y][0].push_back(OPEN);
+                    }
+                    ++(*index);
+                }
+                VTR_ASSERT(indices[SOURCE][x][y][0].size() == type->class_inf.size());
+                VTR_ASSERT(indices[SINK][x][y][0].size() == type->class_inf.size());
 
                 /* Limited sides for grids
                  *   The wanted side depends on the location of the grid.
@@ -1166,15 +1044,74 @@ static void load_block_rr_indices(RRGraphBuilder& rr_graph_builder,
                 /* If wanted sides is empty still, this block does not have specific wanted sides,
                  * Deposit all the sides
                  */
-                if (wanted_sides.empty()) {
+                if (true == wanted_sides.empty()) {
                     for (e_side side : {TOP, BOTTOM, LEFT, RIGHT}) {
                         wanted_sides.push_back(side);
                     }
                 }
 
-                add_tile_pins_spatial_lookup(rr_graph_builder, grid, x, y, index, wanted_sides);
-                if (is_flat) {
-                    alloc_and_load_intra_cluster_rr_node_indices(rr_graph_builder, grid, x, y, index);
+                //Assign indices for IPINs and OPINs at all offsets from root
+                for (int ipin = 0; ipin < type->num_pins; ++ipin) {
+                    bool assigned_to_rr_node = false;
+                    for (e_side side : wanted_sides) {
+                        for (int width_offset = 0; width_offset < type->width; ++width_offset) {
+                            int x_tile = x + width_offset;
+                            for (int height_offset = 0; height_offset < type->height; ++height_offset) {
+                                int y_tile = y + height_offset;
+                                if (type->pinloc[width_offset][height_offset][side][ipin]) {
+                                    int iclass = type->pin_class[ipin];
+                                    auto class_type = type->class_inf[iclass].type;
+
+                                    if (class_type == DRIVER) {
+                                        indices[OPIN][x_tile][y_tile][side].push_back(*index);
+                                        indices[IPIN][x_tile][y_tile][side].push_back(OPEN);
+                                        assigned_to_rr_node = true;
+                                    } else {
+                                        VTR_ASSERT(class_type == RECEIVER);
+                                        indices[OPIN][x_tile][y_tile][side].push_back(OPEN);
+                                        indices[IPIN][x_tile][y_tile][side].push_back(*index);
+                                        assigned_to_rr_node = true;
+                                    }
+                                } else {
+                                    indices[IPIN][x_tile][y_tile][side].push_back(OPEN);
+                                    indices[OPIN][x_tile][y_tile][side].push_back(OPEN);
+                                }
+                            }
+                        }
+                    }
+                    /* A pin may locate on multiple sides of a tile.
+                     * Instead of allocating multiple rr_nodes for the pin,
+                     * we just create a rr_node and make it indexable on these sides
+                     * As such, we can avoid redundant rr_node to be allocated
+                     * and multiple nets to be mapped to the pin
+                     *
+                     * Considering that some pin could be just dangling, we do not need
+                     * to create a void rr_node for it.
+                     * As such, we only allocate a rr node when the pin is indeed located
+                     * on at least one side
+                     */
+                    if (assigned_to_rr_node) {
+                        ++(*index);
+                    }
+                }
+
+                //Sanity check
+                for (int width_offset = 0; width_offset < type->width; ++width_offset) {
+                    int x_tile = x + width_offset;
+                    for (int height_offset = 0; height_offset < type->height; ++height_offset) {
+                        int y_tile = y + height_offset;
+                        for (e_side side : SIDES) {
+                            //Note that the fast look-up stores all the indices for the pins on each side
+                            //It has a fixed size (either 0 or the number of pins)
+                            //Case 0 pins: the side is skipped as no pins are located on it
+                            //Case number of pins: there are pins on this side
+                            //and data query can be applied any pin id on this side
+                            VTR_ASSERT((indices[IPIN][x_tile][y_tile][side].size() == size_t(type->num_pins))
+                                       || (0 == indices[IPIN][x_tile][y_tile][side].size()));
+                            VTR_ASSERT((indices[OPIN][x_tile][y_tile][side].size() == size_t(type->num_pins))
+                                       || (0 == indices[OPIN][x_tile][y_tile][side].size()));
+                        }
+                    }
                 }
             }
         }
@@ -1190,373 +1127,172 @@ static void load_block_rr_indices(RRGraphBuilder& rr_graph_builder,
                 int root_x = x - width_offset;
                 int root_y = y - height_offset;
 
-                rr_graph_builder.node_lookup().mirror_nodes(vtr::Point<int>(root_x, root_y),
-                                                            vtr::Point<int>(x, y),
-                                                            SOURCE,
-                                                            SIDES[0]);
-                rr_graph_builder.node_lookup().mirror_nodes(vtr::Point<int>(root_x, root_y),
-                                                            vtr::Point<int>(x, y),
-                                                            SINK,
-                                                            SIDES[0]);
+                indices[SOURCE][x][y][0] = indices[SOURCE][root_x][root_y][0];
+                indices[SINK][x][y][0] = indices[SINK][root_x][root_y][0];
             }
         }
     }
 }
 
-static void add_tile_pins_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                         const DeviceGrid& grid,
-                                         int x,
-                                         int y,
-                                         int* index,
-                                         const std::vector<e_side>& wanted_sides) {
-    auto type = grid[x][y].type;
-
-    // Reserve nodes for top-level blocks in lookup to save memory
-    for (e_side side : wanted_sides) {
-        for (int width_offset = 0; width_offset < type->width; ++width_offset) {
-            int x_tile = x + width_offset;
-            for (int height_offset = 0; height_offset < type->height; ++height_offset) {
-                int y_tile = y + height_offset;
-                rr_graph_builder.node_lookup().reserve_nodes(x_tile, y_tile, OPIN, type->num_pins, side);
-                rr_graph_builder.node_lookup().reserve_nodes(x_tile, y_tile, IPIN, type->num_pins, side);
-            }
-        }
-    }
-
-    //Assign indices for IPINs and OPINs at all offsets from root
-    assign_tile_pins_indices(rr_graph_builder,
-                             grid,
-                             x,
-                             y,
-                             index,
-                             wanted_sides);
-}
-
-static void assign_tile_pins_indices(RRGraphBuilder& rr_graph_builder,
-                                     const DeviceGrid& grid,
-                                     int x,
-                                     int y,
-                                     int* index,
-                                     const std::vector<e_side>& wanted_sides) {
-    auto type = grid[x][y].type;
-    for (int ipin = 0; ipin < type->num_pins; ++ipin) {
-        bool assigned_to_rr_node = false;
-        for (e_side side : wanted_sides) {
-            for (int width_offset = 0; width_offset < type->width; ++width_offset) {
-                int x_tile = x + width_offset;
-                for (int height_offset = 0; height_offset < type->height; ++height_offset) {
-                    int y_tile = y + height_offset;
-                    if (type->pinloc[width_offset][height_offset][side][ipin]) {
-                        auto pin_type = get_pin_type_from_pin_physical_num(type, ipin);
-                        if (pin_type == DRIVER) {
-                            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x_tile, y_tile, OPIN, ipin, side);
-                            assigned_to_rr_node = true;
-                        } else {
-                            VTR_ASSERT(pin_type == RECEIVER);
-                            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x_tile, y_tile, IPIN, ipin, side);
-                            assigned_to_rr_node = true;
-                        }
-                    }
-                }
-            }
-        }
-        /* A pin may locate on multiple sides of a tile.
-         * Instead of allocating multiple rr_nodes for the pin,
-         * we just create a rr_node and make it indexable on these sides
-         * As such, we can avoid redundant rr_node to be allocated
-         * and multiple nets to be mapped to the pin
-         *
-         * Considering that some pin could be just dangling, we do not need
-         * to create a void rr_node for it.
-         * As such, we only allocate a rr node when the pin is indeed located
-         * on at least one side
-         */
-        if (assigned_to_rr_node) {
-            ++(*index);
-        }
-    }
-}
-
-static void add_tile_sink_src_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                             const DeviceGrid& grid,
-                                             int x,
-                                             int y,
-                                             int* index) {
-    auto type = grid[x][y].type;
-    for (size_t iclass = 0; iclass < type->class_inf.size(); ++iclass) {
-        auto class_type = type->class_inf[iclass].type;
-        if (class_type == DRIVER) {
-            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x, y, SOURCE, iclass);
-        } else {
-            VTR_ASSERT(class_type == RECEIVER);
-            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x, y, SINK, iclass);
-        }
-        ++(*index);
-    }
-}
-
-static void add_intra_src_sink_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                              ClusterBlockId cluster_blk_id,
-                                              int x,
-                                              int y,
-                                              int* index) {
-    VTR_ASSERT(cluster_blk_id != ClusterBlockId::INVALID() || cluster_blk_id != EMPTY_BLOCK_ID);
-    auto& device_ctx = g_vpr_ctx.mutable_device();
-
-    t_rr_edge_info_set rr_edges_to_create;
-
-    device_ctx.rr_graph_builder.rr_nodes().edges_read_ = false;
-
-    auto cluster_internal_classes = get_cluster_internal_class_pairs(cluster_blk_id);
-    for (auto class_pair : cluster_internal_classes) {
-        int class_num = class_pair.first;
-        VTR_ASSERT(class_num >= 0);
-        auto primitive_class = class_pair.second;
-        auto class_type = primitive_class->type;
-        if (class_type == DRIVER) {
-            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x, y, SOURCE, class_num);
-        } else {
-            VTR_ASSERT(class_type == RECEIVER);
-            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x, y, SINK, class_num);
-        }
-        ++(*index);
-    }
-}
-
-static void add_intra_ipin_opin_spatial_lookup(RRGraphBuilder& rr_graph_builder,
-                                               ClusterBlockId cluster_blk_id,
-                                               const DeviceGrid& grid,
-                                               int x,
-                                               int y,
-                                               int* index) {
-    VTR_ASSERT(cluster_blk_id != ClusterBlockId::INVALID() || cluster_blk_id != EMPTY_BLOCK_ID);
-    /* The side of the internal pins is considered to be only TOP, and they are only accessible in the root location of the tile */
-
-    auto& cluster_net_list = g_vpr_ctx.clustering().clb_nlist;
-
-    auto type = grid[x][y].type;
-    auto logical_block = cluster_net_list.block_type(cluster_blk_id);
-
-    // Reserve
-    rr_graph_builder.node_lookup().reserve_nodes(x, y, OPIN, logical_block->pin_logical_num_to_pb_pin_mapping.size(), e_side::TOP);
-    rr_graph_builder.node_lookup().reserve_nodes(x, y, IPIN, logical_block->pin_logical_num_to_pb_pin_mapping.size(), e_side::TOP);
-
-    auto internal_pins = get_cluster_internal_ipin_opin(cluster_blk_id);
-    for (auto pin_num : internal_pins) {
-        VTR_ASSERT(pin_num >= 0);
-        bool assigned_to_rr_node = false;
-        auto pin_type = get_pin_type_from_pin_physical_num(type, pin_num);
-        // It is assumed that all internal pins are on the top side
-        // Also, in the case that the tile's height or width is > 1, internal pins are only accessible from the root location
-        if (pin_type == RECEIVER) {
-            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x, y, IPIN, pin_num, e_side::TOP);
-            assigned_to_rr_node = true;
-        } else {
-            VTR_ASSERT(pin_type == DRIVER);
-            rr_graph_builder.node_lookup().add_node(RRNodeId(*index), x, y, OPIN, pin_num, e_side::TOP);
-            assigned_to_rr_node = true;
-        }
-
-        if (assigned_to_rr_node)
-            ++(*index);
-    }
-}
-
-/* As the rr_indices builders modify a local copy of indices, use the local copy in the builder 
- * TODO: these building functions should only talk to a RRGraphBuilder object
- *       The biggest and fatal issue is 
- *       - the rr_graph2.h is included in the rr_graph_storage.h,
- *         which is included in the rr_graph_builder.h
- *         If we include rr_graph_builder.h in rr_graph2.h, this creates a loop
- *         for C++ compiler to identify data structures, which cannot be solved!!!
- *         This will block us when putting the RRGraphBuilder object as an input arguement 
- *         of this function
- */
-void alloc_and_load_rr_node_indices(RRGraphBuilder& rr_graph_builder,
-                                    const t_chan_width* nodes_per_chan,
-                                    const DeviceGrid& grid,
-                                    int* index,
-                                    const t_chan_details& chan_details_x,
-                                    const t_chan_details& chan_details_y,
-                                    bool is_flat) {
+t_rr_node_indices alloc_and_load_rr_node_indices(const int max_chan_width,
+                                                 const DeviceGrid& grid,
+                                                 int* index,
+                                                 const t_chan_details& chan_details_x,
+                                                 const t_chan_details& chan_details_y) {
     /* Allocates and loads all the structures needed for fast lookups of the   *
      * index of an rr_node.  rr_node_indices is a matrix containing the index  *
      * of the *first* rr_node at a given (i,j) location.                       */
 
+    t_rr_node_indices indices;
+
     /* Alloc the lookup table */
     for (t_rr_type rr_type : RR_TYPES) {
         if (rr_type == CHANX) {
-            rr_graph_builder.node_lookup().resize_nodes(grid.height(), grid.width(), rr_type, NUM_SIDES);
+            indices[rr_type].resize({grid.height(), grid.width(), NUM_SIDES});
         } else {
-            rr_graph_builder.node_lookup().resize_nodes(grid.width(), grid.height(), rr_type, NUM_SIDES);
+            indices[rr_type].resize({grid.width(), grid.height(), NUM_SIDES});
         }
     }
 
     /* Assign indices for block nodes */
-    load_block_rr_indices(rr_graph_builder, grid, index, is_flat);
+    load_block_rr_indices(grid, indices, index);
 
     /* Load the data for x and y channels */
-    load_chan_rr_indices(nodes_per_chan->x_max, grid.width(), grid.height(),
-                         CHANX, chan_details_x, rr_graph_builder, index);
-    load_chan_rr_indices(nodes_per_chan->y_max, grid.height(), grid.width(),
-                         CHANY, chan_details_y, rr_graph_builder, index);
+    load_chan_rr_indices(max_chan_width, grid.width(), grid.height(),
+                         CHANX, chan_details_x, indices, index);
+    load_chan_rr_indices(max_chan_width, grid.height(), grid.width(),
+                         CHANY, chan_details_y, indices, index);
+
+    return indices;
 }
 
-void alloc_and_load_intra_cluster_rr_node_indices(RRGraphBuilder& rr_graph_builder,
-                                                  const DeviceGrid& grid,
-                                                  int x,
-                                                  int y,
-                                                  int* index) {
-    VTR_ASSERT(grid[x][y].width_offset == 0 && grid[x][y].height_offset == 0);
-    auto& place_ctx = g_vpr_ctx.placement();
+bool verify_rr_node_indices(const DeviceGrid& grid, const t_rr_node_indices& rr_node_indices, const t_rr_graph_storage& rr_nodes) {
+    std::unordered_map<int, int> rr_node_counts;
 
-    auto type = grid[x][y].type;
-    auto grid_block = place_ctx.grid_blocks[x][y];
-    //iterate over different sub tiles inside a tile
-    for (int abs_cap = 0; abs_cap < type->capacity; abs_cap++) {
-        if (grid_block.subtile_empty(abs_cap)) {
-            continue;
+    for (t_rr_type rr_type : RR_TYPES) {
+        int width = grid.width();
+        int height = grid.height();
+
+        //CHANX bizarely stores with x/y swapped...
+        if (rr_type == CHANX) {
+            std::swap(width, height);
         }
-        auto cluster_blk_id = grid_block.blocks[abs_cap];
-        VTR_ASSERT(cluster_blk_id != ClusterBlockId::INVALID() || cluster_blk_id != EMPTY_BLOCK_ID);
-        add_intra_src_sink_spatial_lookup(rr_graph_builder,
-                                          cluster_blk_id,
-                                          x,
+
+        for (int x = 0; x < width; ++x) {
+            for (int y = 0; y < height; ++y) {
+                for (e_side side : SIDES) {
+                    for (int inode : rr_node_indices[rr_type][x][y][side]) {
+                        if (inode < 0) continue;
+
+                        rr_node_counts[inode]++;
+
+                        auto& rr_node = rr_nodes[inode];
+
+                        if (rr_node.type() != rr_type) {
+                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node type does not match between rr_nodes and rr_node_indices (%s/%s): %s",
+                                      rr_node_typename[rr_node.type()],
+                                      rr_node_typename[rr_type],
+                                      describe_rr_node(inode).c_str());
+                        }
+
+                        if (rr_node.type() == CHANX) {
+                            //CHANX has this bizare swapped x / y storage...
+                            std::swap(x, y);
+
+                            VTR_ASSERT_MSG(rr_node.ylow() == rr_node.yhigh(), "CHANX should be horizontal");
+
+                            if (y != rr_node.ylow()) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "RR node y position does not agree between rr_nodes (%d) and rr_node_indices (%d): %s",
+                                          rr_node.ylow(),
                                           y,
-                                          index);
+                                          describe_rr_node(inode).c_str());
+                            }
 
-        add_intra_ipin_opin_spatial_lookup(rr_graph_builder,
-                                           cluster_blk_id,
-                                           grid,
-                                           x,
-                                           y,
-                                           index);
-    }
-}
+                            if (x < rr_node.xlow() || x > rr_node.xhigh()) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "RR node x positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
+                                          rr_node.xlow(),
+                                          rr_node.xlow(),
+                                          x,
+                                          describe_rr_node(inode).c_str());
+                            }
 
-/**
- * Validate the node look-up matches all the node-level information 
- * in the storage of a routing resource graph
- * This function will check the following aspects:
- * - The type of each node matches its type that is indexed in the node look-up
- * - For bounding box (xlow, ylow, xhigh, yhigh) of each node is indexable in the node look-up
- * - The number of unique indexable nodes in the node look up matches the number of nodes in the storage
- *   This ensures that every node in the storage is indexable and there are no hidden nodes in the look-up
- */
-bool verify_rr_node_indices(const DeviceGrid& grid,
-                            const RRGraphView& rr_graph,
-                            const vtr::vector<RRIndexedDataId, t_rr_indexed_data>& rr_indexed_data,
-                            const t_rr_graph_storage& rr_nodes,
-                            bool is_flat) {
-    std::unordered_map<RRNodeId, int> rr_node_counts;
+                            std::swap(x, y); //Swap back
+                        } else if (rr_node.type() == CHANY) {
+                            VTR_ASSERT_MSG(rr_node.xlow() == rr_node.xhigh(), "CHANY should be veritcal");
 
-    int width = grid.width();
-    int height = grid.height();
+                            if (x != rr_node.xlow()) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "RR node x position does not agree between rr_nodes (%d) and rr_node_indices (%d): %s",
+                                          rr_node.xlow(),
+                                          x,
+                                          describe_rr_node(inode).c_str());
+                            }
 
-    for (int x = 0; x < width; ++x) {
-        for (int y = 0; y < height; ++y) {
-            for (t_rr_type rr_type : RR_TYPES) {
-                /* Get the list of nodes at a specific location (x, y) */
-                std::vector<RRNodeId> nodes_from_lookup;
-                if (rr_type == CHANX || rr_type == CHANY) {
-                    nodes_from_lookup = rr_graph.node_lookup().find_channel_nodes(x, y, rr_type);
-                } else {
-                    nodes_from_lookup = rr_graph.node_lookup().find_grid_nodes_at_all_sides(x, y, rr_type);
-                }
-                for (RRNodeId inode : nodes_from_lookup) {
-                    rr_node_counts[inode]++;
+                            if (y < rr_node.ylow() || y > rr_node.yhigh()) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "RR node y positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
+                                          rr_node.ylow(),
+                                          rr_node.ylow(),
+                                          y,
+                                          describe_rr_node(inode).c_str());
+                            }
+                        } else if (rr_node.type() == SOURCE || rr_node.type() == SINK) {
+                            //Sources have co-ordintes covering the entire block they are in
+                            if (x < rr_node.xlow() || x > rr_node.xhigh()) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "RR node x positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
+                                          rr_node.xlow(),
+                                          rr_node.xlow(),
+                                          x,
+                                          describe_rr_node(inode).c_str());
+                            }
 
-                    if (rr_graph.node_type(inode) != rr_type) {
-                        VPR_ERROR(VPR_ERROR_ROUTE, "RR node type does not match between rr_nodes and rr_node_indices (%s/%s): %s",
-                                  rr_node_typename[rr_graph.node_type(inode)],
-                                  rr_node_typename[rr_type],
-                                  describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
-                    }
+                            if (y < rr_node.ylow() || y > rr_node.yhigh()) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "RR node y positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
+                                          rr_node.ylow(),
+                                          rr_node.ylow(),
+                                          y,
+                                          describe_rr_node(inode).c_str());
+                            }
 
-                    if (rr_graph.node_type(inode) == CHANX) {
-                        VTR_ASSERT_MSG(rr_graph.node_ylow(inode) == rr_graph.node_yhigh(inode), "CHANX should be horizontal");
-
-                        if (y != rr_graph.node_ylow(inode)) {
-                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node y position does not agree between rr_nodes (%d) and rr_node_indices (%d): %s",
-                                      rr_graph.node_ylow(inode),
-                                      y,
-                                      describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
+                        } else {
+                            VTR_ASSERT(rr_node.type() == IPIN || rr_node.type() == OPIN);
+                            /* As we allow a pin to be indexable on multiple sides,
+                             * This check code should be invalid
+                             * if (rr_node.xlow() != x) {
+                             *     VPR_ERROR(VPR_ERROR_ROUTE, "RR node xlow does not match between rr_nodes and rr_node_indices (%d/%d): %s",
+                             *               rr_node.xlow(),
+                             *               x,
+                             *               describe_rr_node(inode).c_str());
+                             * }
+                             *
+                             * if (rr_node.ylow() != y) {
+                             *     VPR_ERROR(VPR_ERROR_ROUTE, "RR node ylow does not match between rr_nodes and rr_node_indices (%d/%d): %s",
+                             *               rr_node.ylow(),
+                             *               y,
+                             *               describe_rr_node(inode).c_str());
+                             * }
+                             */
                         }
 
-                        if (!rr_graph.x_in_node_range(x, inode)) {
-                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node x positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
-                                      rr_graph.node_xlow(inode),
-                                      rr_graph.node_xlow(inode),
-                                      x,
-                                      describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
+                        if (rr_type == IPIN || rr_type == OPIN) {
+                            /* As we allow a pin to be indexable on multiple sides,
+                             * This check code should be invalid
+                             * if (rr_node.side() != side) {
+                             *     VPR_ERROR(VPR_ERROR_ROUTE, "RR node xlow does not match between rr_nodes and rr_node_indices (%s/%s): %s",
+                             *               SIDE_STRING[rr_node.side()],
+                             *               SIDE_STRING[side],
+                             *               describe_rr_node(inode).c_str());
+                             * } else {
+                             *     VTR_ASSERT(rr_node.side() == side);
+                             * }
+                             */
+                        } else { //Non-pin's don't have sides, and should only be in side 0
+                            if (side != SIDES[0]) {
+                                VPR_ERROR(VPR_ERROR_ROUTE, "Non-Pin RR node in rr_node_indices found with non-default side %s: %s",
+                                          SIDE_STRING[side],
+                                          describe_rr_node(inode).c_str());
+                            } else {
+                                VTR_ASSERT(side == 0);
+                            }
                         }
-                    } else if (rr_graph.node_type(inode) == CHANY) {
-                        VTR_ASSERT_MSG(rr_graph.node_xlow(inode) == rr_graph.node_xhigh(inode), "CHANY should be veritcal");
-
-                        if (x != rr_graph.node_xlow(inode)) {
-                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node x position does not agree between rr_nodes (%d) and rr_node_indices (%d): %s",
-                                      rr_graph.node_xlow(inode),
-                                      x,
-                                      describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
-                        }
-
-                        if (!rr_graph.y_in_node_range(y, inode)) {
-                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node y positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
-                                      rr_graph.node_ylow(inode),
-                                      rr_graph.node_ylow(inode),
-                                      y,
-                                      describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
-                        }
-                    } else if (rr_graph.node_type(inode) == SOURCE || rr_graph.node_type(inode) == SINK) {
-                        //Sources have co-ordintes covering the entire block they are in
-                        if (!rr_graph.x_in_node_range(x, inode)) {
-                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node x positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
-                                      rr_graph.node_xlow(inode),
-                                      rr_graph.node_xlow(inode),
-                                      x,
-                                      describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
-                        }
-
-                        if (!rr_graph.y_in_node_range(y, inode)) {
-                            VPR_ERROR(VPR_ERROR_ROUTE, "RR node y positions do not agree between rr_nodes (%d <-> %d) and rr_node_indices (%d): %s",
-                                      rr_graph.node_ylow(inode),
-                                      rr_graph.node_ylow(inode),
-                                      y,
-                                      describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
-                        }
-
-                    } else {
-                        VTR_ASSERT(rr_graph.node_type(inode) == IPIN || rr_graph.node_type(inode) == OPIN);
-                        /* As we allow a pin to be indexable on multiple sides,
-                         * This check code should be invalid
-                         * if (rr_node.xlow() != x) {
-                         *     VPR_ERROR(VPR_ERROR_ROUTE, "RR node xlow does not match between rr_nodes and rr_node_indices (%d/%d): %s",
-                         *               rr_node.xlow(),
-                         *               x,
-                         *               describe_rr_node(rr_graph, grid, rr_indexed_data, inode).c_str());
-                         * }
-                         *
-                         * if (rr_node.ylow() != y) {
-                         *     VPR_ERROR(VPR_ERROR_ROUTE, "RR node ylow does not match between rr_nodes and rr_node_indices (%d/%d): %s",
-                         *               rr_node.ylow(),
-                         *               y,
-                         *               describe_rr_node(rr_graph, grid, rr_indexed_data, inode).c_str());
-                         * }
-                         */
-                    }
-
-                    if (rr_type == IPIN || rr_type == OPIN) {
-                        /* As we allow a pin to be indexable on multiple sides,
-                         * This check code should be invalid
-                         * if (rr_node.side() != side) {
-                         *     VPR_ERROR(VPR_ERROR_ROUTE, "RR node xlow does not match between rr_nodes and rr_node_indices (%s/%s): %s",
-                         *               SIDE_STRING[rr_node.side()],
-                         *               SIDE_STRING[side],
-                         *               describe_rr_node(rr_graph, grid, rr_indexed_data, inode).c_str());
-                         * } else {
-                         *     VTR_ASSERT(rr_node.side() == side);
-                         * }
-                         */
                     }
                 }
             }
@@ -1570,31 +1306,31 @@ bool verify_rr_node_indices(const DeviceGrid& grid,
     }
 
     for (auto kv : rr_node_counts) {
-        RRNodeId inode = kv.first;
+        int inode = kv.first;
         int count = kv.second;
 
-        auto& rr_node = rr_nodes[size_t(inode)];
+        auto& rr_node = rr_nodes[inode];
 
-        if (rr_graph.node_type(inode) == SOURCE || rr_graph.node_type(inode) == SINK) {
-            int rr_width = (rr_graph.node_xhigh(rr_node.id()) - rr_graph.node_xlow(rr_node.id()) + 1);
-            int rr_height = (rr_graph.node_yhigh(rr_node.id()) - rr_graph.node_ylow(rr_node.id()) + 1);
+        if (rr_node.type() == SOURCE || rr_node.type() == SINK) {
+            int rr_width = (rr_node.xhigh() - rr_node.xlow() + 1);
+            int rr_height = (rr_node.yhigh() - rr_node.ylow() + 1);
             int rr_area = rr_width * rr_height;
             if (count != rr_area) {
                 VPR_ERROR(VPR_ERROR_ROUTE, "Mismatch between RR node size (%d) and count within rr_node_indices (%d): %s",
                           rr_area,
                           rr_node.length(),
                           count,
-                          describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
+                          describe_rr_node(inode).c_str());
             }
             /* As we allow a pin to be indexable on multiple sides,
              * This check code should not be applied to input and output pins
              */
-        } else if ((OPIN != rr_graph.node_type(inode)) && (IPIN != rr_graph.node_type(inode))) {
+        } else if ((OPIN != rr_node.type()) && (IPIN != rr_node.type())) {
             if (count != rr_node.length() + 1) {
                 VPR_ERROR(VPR_ERROR_ROUTE, "Mismatch between RR node length (%d) and count within rr_node_indices (%d, should be length + 1): %s",
                           rr_node.length(),
                           count,
-                          describe_rr_node(rr_graph, grid, rr_indexed_data, size_t(inode), is_flat).c_str());
+                          describe_rr_node(inode).c_str());
             }
         }
     }
@@ -1602,13 +1338,250 @@ bool verify_rr_node_indices(const DeviceGrid& grid,
     return true;
 }
 
-int get_track_to_pins(RRGraphBuilder& rr_graph_builder,
-                      int seg,
+std::vector<int> get_rr_node_chan_wires_at_location(const t_rr_node_indices& L_rr_node_indices,
+                                                    t_rr_type rr_type,
+                                                    int x,
+                                                    int y) {
+    VTR_ASSERT(rr_type == CHANX || rr_type == CHANY);
+
+    /* Currently need to swap x and y for CHANX because of chan, seg convention */
+    if (CHANX == rr_type) {
+        std::swap(x, y);
+    }
+
+    return L_rr_node_indices[rr_type][x][y][SIDES[0]];
+}
+
+void get_rr_node_indices(const t_rr_node_indices& L_rr_node_indices,
+                         int x,
+                         int y,
+                         t_rr_type rr_type,
+                         int ptc,
+                         std::vector<int>* indices) {
+    indices->resize(0);
+
+    /*
+     * Like get_rr_node_index() but returns all matching nodes,
+     * rather than just the first. This is particularly useful for getting all instances
+     * of a specific IPIN/OPIN at a specific gird tile (x,y) location.
+     */
+
+    if (rr_type == IPIN || rr_type == OPIN) {
+        //For pins we need to look at all the sides of the current grid tile
+
+        for (e_side side : SIDES) {
+            int rr_node_index = get_rr_node_index(L_rr_node_indices, x, y, rr_type, ptc, side);
+
+            if (rr_node_index >= 0) {
+                indices->push_back(rr_node_index);
+            }
+        }
+    } else {
+        //Sides do not effect non-pins so there should only be one per ptc
+        int rr_node_index = get_rr_node_index(L_rr_node_indices, x, y, rr_type, ptc);
+
+        if (rr_node_index != OPEN) {
+            indices->push_back(rr_node_index);
+        }
+    }
+}
+
+void get_rr_node_indices(const t_rr_node_indices& L_rr_node_indices,
+                         int x,
+                         int y,
+                         t_rr_type rr_type,
+                         std::vector<int>* indices,
+                         e_side side) {
+    //Comparison predicate
+    auto is_valid_id = [](int id) { return id != OPEN; };
+
+    indices->resize(0);
+
+    if (rr_type == SOURCE
+        || rr_type == SINK
+        || rr_type == CHANX
+        || rr_type == CHANY) {
+        //CHANX uses an odd swapped x/y convention...
+        if (CHANX == rr_type) {
+            std::swap(x, y);
+        }
+
+        VTR_ASSERT_MSG(side == NUM_SIDES, "Non-IPINs/OPINs must not specify side");
+        indices->reserve(L_rr_node_indices[rr_type][x][y][0].size());
+        std::copy_if(
+            L_rr_node_indices[rr_type][x][y][0].begin(),
+            L_rr_node_indices[rr_type][x][y][0].end(),
+            std::back_inserter(*indices),
+            is_valid_id);
+    } else {
+        VTR_ASSERT(rr_type == OPIN || rr_type == IPIN);
+        if (side == NUM_SIDES) {
+            //All sides
+            size_t capacity_needed = 0;
+            for (e_side tmp_side : SIDES) {
+                capacity_needed += L_rr_node_indices[rr_type][x][y][tmp_side].size();
+            }
+
+            indices->reserve(capacity_needed);
+            for (e_side tmp_side : SIDES) {
+                std::copy_if(
+                    L_rr_node_indices[rr_type][x][y][tmp_side].begin(),
+                    L_rr_node_indices[rr_type][x][y][tmp_side].end(),
+                    std::back_inserter(*indices),
+                    is_valid_id);
+            }
+        } else {
+            //Side specified
+            indices->reserve(L_rr_node_indices[rr_type][x][y][side].size());
+            std::copy_if(
+                L_rr_node_indices[rr_type][x][y][side].begin(),
+                L_rr_node_indices[rr_type][x][y][side].end(),
+                std::back_inserter(*indices),
+                is_valid_id);
+        }
+    }
+}
+
+int get_rr_node_index(const t_rr_node_indices& L_rr_node_indices,
+                      int x,
+                      int y,
+                      t_rr_type rr_type,
+                      int ptc,
+                      e_side side) {
+    /*
+     * Returns the index of the specified routing resource node.  (x,y) are
+     * the location within the FPGA, rr_type specifies the type of resource,
+     * and ptc gives the number of this resource.  ptc is the class number,
+     * pin number or track number, depending on what type of resource this
+     * is.  All ptcs start at 0 and go up to pins_per_clb-1 or the equivalent.
+     * There are class_inf size SOURCEs + SINKs, type->num_pins IPINs + OPINs,
+     * and max_chan_width CHANX and CHANY (each).
+     *
+     * Note that for segments (CHANX and CHANY) of length > 1, the segment is
+     * given an rr_index based on the (x,y) location at which it starts (i.e.
+     * lowest (x,y) location at which this segment exists).
+     * This routine also performs error checking to make sure the node in
+     * question exists.
+     *
+     * The 'side' argument only applies to IPIN/OPIN types, and specifies which
+     * side of the grid tile the node should be located on. The value is ignored
+     * for non-IPIN/OPIN types
+     */
+    if (rr_type == IPIN || rr_type == OPIN) {
+        VTR_ASSERT_MSG(side != NUM_SIDES, "IPIN/OPIN must specify desired side (can not be default NUM_SIDES)");
+    } else {
+        VTR_ASSERT(rr_type != IPIN && rr_type != OPIN);
+        side = SIDES[0];
+    }
+
+    int iclass;
+
+    auto& device_ctx = g_vpr_ctx.device();
+
+    VTR_ASSERT(ptc >= 0);
+    VTR_ASSERT(x >= 0 && x < int(device_ctx.grid.width()));
+    VTR_ASSERT(y >= 0 && y < int(device_ctx.grid.height()));
+
+    auto type = device_ctx.grid[x][y].type;
+
+    /* Currently need to swap x and y for CHANX because of chan, seg convention */
+    if (CHANX == rr_type) {
+        std::swap(x, y);
+    }
+
+    /* Start of that block.  */
+    const std::vector<int>& lookup = L_rr_node_indices[rr_type][x][y][side];
+
+    /* Check valid ptc num */
+    VTR_ASSERT(ptc >= 0);
+
+    switch (rr_type) {
+        case SOURCE:
+            VTR_ASSERT(ptc < (int)type->class_inf.size());
+            VTR_ASSERT(type->class_inf[ptc].type == DRIVER);
+            break;
+
+        case SINK:
+            VTR_ASSERT(ptc < (int)type->class_inf.size());
+            VTR_ASSERT(type->class_inf[ptc].type == RECEIVER);
+            break;
+
+        case OPIN:
+            VTR_ASSERT(ptc < type->num_pins);
+            iclass = type->pin_class[ptc];
+            VTR_ASSERT(type->class_inf[iclass].type == DRIVER);
+            break;
+
+        case IPIN:
+            VTR_ASSERT(ptc < type->num_pins);
+            iclass = type->pin_class[ptc];
+            VTR_ASSERT(type->class_inf[iclass].type == RECEIVER);
+            break;
+
+        case CHANX:
+        case CHANY:
+            break;
+
+        default:
+            VPR_FATAL_ERROR(VPR_ERROR_ROUTE,
+                            "Bad rr_node passed to get_rr_node_index.\n"
+                            "Request for type=%d ptc=%d at (%d, %d).\n",
+                            rr_type, ptc, x, y);
+    }
+
+    return ((unsigned)ptc < lookup.size() ? lookup[ptc] : -1);
+}
+
+int find_average_rr_node_index(int device_width,
+                               int device_height,
+                               t_rr_type rr_type,
+                               int ptc,
+                               const t_rr_node_indices& L_rr_node_indices) {
+    /* Find and return the index to a rr_node that is located at the "center" *
+     * of the current grid array, if possible.  In the event the "center" of  *
+     * the grid array is an EMPTY or IO node, then retry alternate locations.  *
+     * Worst case, this function will simply return the 1st non-EMPTY and     *
+     * non-IO node.                                                           */
+
+    int inode = get_rr_node_index(L_rr_node_indices, (device_width) / 2, (device_height) / 2,
+                                  rr_type, ptc);
+
+    if (inode == OPEN) {
+        inode = get_rr_node_index(L_rr_node_indices, (device_width) / 4, (device_height) / 4,
+                                  rr_type, ptc);
+    }
+    if (inode == OPEN) {
+        inode = get_rr_node_index(L_rr_node_indices, (device_width) / 4 * 3, (device_height) / 4 * 3,
+                                  rr_type, ptc);
+    }
+    if (inode == OPEN) {
+        auto& device_ctx = g_vpr_ctx.device();
+
+        for (int x = 0; x < device_width; ++x) {
+            for (int y = 0; y < device_height; ++y) {
+                if (device_ctx.grid[x][y].type == device_ctx.EMPTY_PHYSICAL_TILE_TYPE)
+                    continue;
+                if (is_io_type(device_ctx.grid[x][y].type))
+                    continue;
+
+                inode = get_rr_node_index(L_rr_node_indices, x, y, rr_type, ptc);
+                if (inode != OPEN)
+                    break;
+            }
+            if (inode != OPEN)
+                break;
+        }
+    }
+    return (inode);
+}
+
+int get_track_to_pins(int seg,
                       int chan,
                       int track,
                       int tracks_per_chan,
-                      RRNodeId from_rr_node,
+                      int from_rr_node,
                       t_rr_edge_info_set& rr_edges_to_create,
+                      const t_rr_node_indices& L_rr_node_indices,
                       const t_track_to_pin_lookup& track_to_pin_lookup,
                       const t_chan_seg_details* seg_details,
                       enum e_rr_type chan_type,
@@ -1666,8 +1639,8 @@ int get_track_to_pins(RRGraphBuilder& rr_graph_builder,
 
                     /* Check there is a connection and Fc map isn't wrong */
                     /*int to_node = get_rr_node_index(L_rr_node_indices, x + width_offset, y + height_offset, IPIN, ipin, side);*/
-                    RRNodeId to_node = rr_graph_builder.node_lookup().find_node(x, y, IPIN, ipin, side);
-                    if (to_node) {
+                    int to_node = get_rr_node_index(L_rr_node_indices, x, y, IPIN, ipin, side);
+                    if (to_node >= 0) {
                         rr_edges_to_create.emplace_back(from_rr_node, to_node, wire_to_ipin_switch);
                         ++num_conn;
                     }
@@ -1696,8 +1669,7 @@ int get_track_to_pins(RRGraphBuilder& rr_graph_builder,
  * switches are marked as being of the types of the larger (lower R) pass
  * transistor.
  */
-int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
-                        const int from_chan,
+int get_track_to_tracks(const int from_chan,
                         const int from_seg,
                         const int from_track,
                         const t_rr_type from_type,
@@ -1708,14 +1680,16 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
                         const DeviceGrid& grid,
                         const int Fs_per_side,
                         t_sblock_pattern& sblock_pattern,
-                        RRNodeId from_rr_node,
+                        const int from_rr_node,
                         t_rr_edge_info_set& rr_edges_to_create,
                         const t_chan_seg_details* from_seg_details,
                         const t_chan_seg_details* to_seg_details,
                         const t_chan_details& to_chan_details,
                         const enum e_directionality directionality,
+                        const t_rr_node_indices& L_rr_node_indices,
                         const vtr::NdMatrix<std::vector<int>, 3>& switch_block_conn,
-                        t_sb_connection_map* sb_conn_map) {
+                        t_sb_connection_map* sb_conn_map,
+                        t_opin_connections_scratchpad* scratchpad) {
     int to_chan, to_sb;
     std::vector<int> conn_tracks;
     bool from_is_sblock, is_behind, Fs_clipped;
@@ -1842,10 +1816,11 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
          * However, can't connect to right (top) if already at rightmost (topmost) track end */
         if (sb_seg < end_sb_seg) {
             if (custom_switch_block) {
-                if (Direction::DEC == from_seg_details[from_track].direction() || BI_DIRECTIONAL == directionality) {
-                    num_conn += get_track_to_chan_seg(rr_graph_builder, from_track, to_chan, to_seg,
+                if (DEC_DIRECTION == from_seg_details[from_track].direction() || BI_DIRECTIONAL == directionality) {
+                    num_conn += get_track_to_chan_seg(from_track, to_chan, to_seg,
                                                       to_type, from_side_a, to_side,
                                                       switch_override,
+                                                      L_rr_node_indices,
                                                       sb_conn_map, from_rr_node, rr_edges_to_create);
                 }
             } else {
@@ -1853,8 +1828,8 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
                     /* For bidir, the target segment might have an unbuffered (bidir pass transistor)
                      * switchbox, so we follow through regardless of whether the current segment has an SB */
                     conn_tracks = switch_block_conn[from_side_a][to_side][from_track];
-                    num_conn += get_bidir_track_to_chan_seg(rr_graph_builder, conn_tracks,
-                                                            to_chan, to_seg, to_sb, to_type,
+                    num_conn += get_bidir_track_to_chan_seg(conn_tracks,
+                                                            L_rr_node_indices, to_chan, to_seg, to_sb, to_type,
                                                             to_seg_details, from_is_sblock, from_switch,
                                                             switch_override,
                                                             directionality, from_rr_node, rr_edges_to_create);
@@ -1862,15 +1837,15 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
                 if (UNI_DIRECTIONAL == directionality) {
                     /* No fanout if no SB. */
                     /* Also, we are connecting from the top or right of SB so it
-                     * makes the most sense to only get there from Direction::DEC wires. */
-                    if ((from_is_sblock) && (Direction::DEC == from_seg_details[from_track].direction())) {
-                        num_conn += get_unidir_track_to_chan_seg(rr_graph_builder, from_track, to_chan,
+                     * makes the most sense to only get there from DEC_DIRECTION wires. */
+                    if ((from_is_sblock) && (DEC_DIRECTION == from_seg_details[from_track].direction())) {
+                        num_conn += get_unidir_track_to_chan_seg(from_track, to_chan,
                                                                  to_seg, to_sb, to_type, max_chan_width, grid,
                                                                  from_side_a, to_side, Fs_per_side,
                                                                  sblock_pattern,
                                                                  switch_override,
-                                                                 to_seg_details,
-                                                                 &Fs_clipped, from_rr_node, rr_edges_to_create);
+                                                                 L_rr_node_indices, to_seg_details,
+                                                                 &Fs_clipped, from_rr_node, rr_edges_to_create, scratchpad);
                     }
                 }
             }
@@ -1880,10 +1855,11 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
          * However, can't connect to left (bottom) if already at leftmost (bottommost) track end */
         if (sb_seg > start_sb_seg) {
             if (custom_switch_block) {
-                if (Direction::INC == from_seg_details[from_track].direction() || BI_DIRECTIONAL == directionality) {
-                    num_conn += get_track_to_chan_seg(rr_graph_builder, from_track, to_chan, to_seg,
+                if (INC_DIRECTION == from_seg_details[from_track].direction() || BI_DIRECTIONAL == directionality) {
+                    num_conn += get_track_to_chan_seg(from_track, to_chan, to_seg,
                                                       to_type, from_side_b, to_side,
                                                       switch_override,
+                                                      L_rr_node_indices,
                                                       sb_conn_map, from_rr_node, rr_edges_to_create);
                 }
             } else {
@@ -1891,8 +1867,8 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
                     /* For bidir, the target segment might have an unbuffered (bidir pass transistor)
                      * switchbox, so we follow through regardless of whether the current segment has an SB */
                     conn_tracks = switch_block_conn[from_side_b][to_side][from_track];
-                    num_conn += get_bidir_track_to_chan_seg(rr_graph_builder, conn_tracks,
-                                                            to_chan, to_seg, to_sb, to_type,
+                    num_conn += get_bidir_track_to_chan_seg(conn_tracks,
+                                                            L_rr_node_indices, to_chan, to_seg, to_sb, to_type,
                                                             to_seg_details, from_is_sblock, from_switch,
                                                             switch_override,
                                                             directionality, from_rr_node, rr_edges_to_create);
@@ -1900,16 +1876,16 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
                 if (UNI_DIRECTIONAL == directionality) {
                     /* No fanout if no SB. */
                     /* Also, we are connecting from the bottom or left of SB so it
-                     * makes the most sense to only get there from Direction::INC wires. */
+                     * makes the most sense to only get there from INC_DIRECTION wires. */
                     if ((from_is_sblock)
-                        && (Direction::INC == from_seg_details[from_track].direction())) {
-                        num_conn += get_unidir_track_to_chan_seg(rr_graph_builder, from_track, to_chan,
+                        && (INC_DIRECTION == from_seg_details[from_track].direction())) {
+                        num_conn += get_unidir_track_to_chan_seg(from_track, to_chan,
                                                                  to_seg, to_sb, to_type, max_chan_width, grid,
                                                                  from_side_b, to_side, Fs_per_side,
                                                                  sblock_pattern,
                                                                  switch_override,
-                                                                 to_seg_details,
-                                                                 &Fs_clipped, from_rr_node, rr_edges_to_create);
+                                                                 L_rr_node_indices, to_seg_details,
+                                                                 &Fs_clipped, from_rr_node, rr_edges_to_create, scratchpad);
                     }
                 }
             }
@@ -1919,8 +1895,8 @@ int get_track_to_tracks(RRGraphBuilder& rr_graph_builder,
     return num_conn;
 }
 
-static int get_bidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
-                                       const std::vector<int> conn_tracks,
+static int get_bidir_track_to_chan_seg(const std::vector<int> conn_tracks,
+                                       const t_rr_node_indices& L_rr_node_indices,
                                        const int to_chan,
                                        const int to_seg,
                                        const int to_sb,
@@ -1930,10 +1906,10 @@ static int get_bidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
                                        const int from_switch,
                                        const int switch_override,
                                        const enum e_directionality directionality,
-                                       RRNodeId from_rr_node,
+                                       const int from_rr_node,
                                        t_rr_edge_info_set& rr_edges_to_create) {
     unsigned iconn;
-    int to_track, to_switch, num_conn, to_x, to_y, i;
+    int to_track, to_node, to_switch, num_conn, to_x, to_y, i;
     bool to_is_sblock;
     short switch_types[2];
 
@@ -1951,9 +1927,9 @@ static int get_bidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
     num_conn = 0;
     for (iconn = 0; iconn < conn_tracks.size(); ++iconn) {
         to_track = conn_tracks[iconn];
-        RRNodeId to_node = rr_graph_builder.node_lookup().find_node(to_x, to_y, to_type, to_track);
+        to_node = get_rr_node_index(L_rr_node_indices, to_x, to_y, to_type, to_track);
 
-        if (!to_node) {
+        if (to_node == OPEN) {
             continue;
         }
 
@@ -1987,16 +1963,16 @@ static int get_bidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
  * edges added .
  * See route/build_switchblocks.c for a detailed description of how the switch block
  * connection map sb_conn_map is generated. */
-static int get_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
-                                 const int from_wire,
+static int get_track_to_chan_seg(const int from_wire,
                                  const int to_chan,
                                  const int to_seg,
                                  const t_rr_type to_chan_type,
                                  const e_side from_side,
                                  const e_side to_side,
                                  const int switch_override,
+                                 const t_rr_node_indices& L_rr_node_indices,
                                  t_sb_connection_map* sb_conn_map,
-                                 RRNodeId from_rr_node,
+                                 const int from_rr_node,
                                  t_rr_edge_info_set& rr_edges_to_create) {
     int edge_count = 0;
     int to_x, to_y;
@@ -2030,9 +2006,9 @@ static int get_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
             if (conn_vector.at(iconn).from_wire != from_wire) continue;
 
             int to_wire = conn_vector.at(iconn).to_wire;
-            RRNodeId to_node = rr_graph_builder.node_lookup().find_node(to_x, to_y, to_chan_type, to_wire);
+            int to_node = get_rr_node_index(L_rr_node_indices, to_x, to_y, to_chan_type, to_wire);
 
-            if (!to_node) {
+            if (to_node == OPEN) {
                 continue;
             }
 
@@ -2061,8 +2037,7 @@ static int get_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
     return edge_count;
 }
 
-static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
-                                        const int from_track,
+static int get_unidir_track_to_chan_seg(const int from_track,
                                         const int to_chan,
                                         const int to_seg,
                                         const int to_sb,
@@ -2074,12 +2049,14 @@ static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
                                         const int Fs_per_side,
                                         t_sblock_pattern& sblock_pattern,
                                         const int switch_override,
+                                        const t_rr_node_indices& L_rr_node_indices,
                                         const t_chan_seg_details* seg_details,
                                         bool* Fs_clipped,
-                                        RRNodeId from_rr_node,
-                                        t_rr_edge_info_set& rr_edges_to_create) {
+                                        const int from_rr_node,
+                                        t_rr_edge_info_set& rr_edges_to_create,
+                                        t_opin_connections_scratchpad* scratchpad) {
     int num_labels = 0;
-    std::vector<int> mux_labels;
+    std::vector<int>& mux_labels = scratchpad->scratch[0];
 
     /* x, y coords for get_rr_node lookups */
     int to_x = (CHANX == to_type ? to_seg : to_chan);
@@ -2088,9 +2065,9 @@ static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
     int sb_y = (CHANX == to_type ? to_chan : to_sb);
     int max_len = (CHANX == to_type ? grid.width() : grid.height()) - 2; //-2 for no perimeter channels
 
-    enum Direction to_dir = Direction::DEC;
+    enum e_direction to_dir = DEC_DIRECTION;
     if (to_sb < to_seg) {
-        to_dir = Direction::INC;
+        to_dir = INC_DIRECTION;
     }
 
     *Fs_clipped = false;
@@ -2098,7 +2075,7 @@ static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
     /* get list of muxes to which we can connect */
     int dummy;
     label_wire_muxes(to_chan, to_seg, seg_details, UNDEFINED, max_len,
-                     to_dir, max_chan_width, false, mux_labels, &num_labels, &dummy);
+                     to_dir, max_chan_width, false, &mux_labels, &num_labels, &dummy);
 
     /* Can't connect if no muxes. */
     if (num_labels < 1) {
@@ -2126,9 +2103,9 @@ static int get_unidir_track_to_chan_seg(RRGraphBuilder& rr_graph_builder,
                 sblock_pattern[sb_x][sb_y][from_side][to_side][from_track][j + 1] = to_track;
             }
 
-            RRNodeId to_node = rr_graph_builder.node_lookup().find_node(to_x, to_y, to_type, to_track);
+            int to_node = get_rr_node_index(L_rr_node_indices, to_x, to_y, to_type, to_track);
 
-            if (!to_node) {
+            if (to_node == OPEN) {
                 continue;
             }
 
@@ -2297,7 +2274,7 @@ static int vpr_to_phy_track(const int itrack,
 }
 
 t_sblock_pattern alloc_sblock_pattern_lookup(const DeviceGrid& grid,
-                                             t_chan_width* nodes_per_chan) {
+                                             const int max_chan_width) {
     /* loading up the sblock connection pattern matrix. It's a huge matrix because
      * for nonquantized W, it's impossible to make simple permutations to figure out
      * where muxes are and how to connect to them such that their sizes are balanced */
@@ -2311,15 +2288,14 @@ t_sblock_pattern alloc_sblock_pattern_lookup(const DeviceGrid& grid,
 
     VTR_ASSERT(grid.width() > 0);
     VTR_ASSERT(grid.height() > 0);
-    //CHANGE THIS
-    VTR_ASSERT(nodes_per_chan->max >= 0);
+    VTR_ASSERT(max_chan_width >= 0);
 
     t_sblock_pattern sblock_pattern({{
                                         grid.width() - 1,
                                         grid.height() - 1,
                                         4, //From side
                                         4, //To side
-                                        size_t(nodes_per_chan->max),
+                                        size_t(max_chan_width),
                                         4 //to_mux, to_trac, alt_mux, alt_track
                                     }},
                                     UN_SET);
@@ -2336,7 +2312,8 @@ void load_sblock_pattern_lookup(const int i,
                                 const t_chan_details& chan_details_y,
                                 const int /*Fs*/,
                                 const enum e_switch_block_type switch_block_type,
-                                t_sblock_pattern& sblock_pattern) {
+                                t_sblock_pattern& sblock_pattern,
+                                t_opin_connections_scratchpad* scratchpad) {
     /* This routine loads a lookup table for sblock topology. The lookup table is huge
      * because the sblock varies from location to location. The i, j means the owning
      * location of the sblock under investigation. */
@@ -2383,17 +2360,21 @@ void load_sblock_pattern_lookup(const int i,
     /* First find all four sides' incoming wires */
 
     static_assert(NUM_SIDES == 4, "Should be 4 sides");
-    std::array<std::vector<int>, NUM_SIDES> wire_mux_on_track;
-    std::array<std::vector<int>, NUM_SIDES> incoming_wire_label;
+    VTR_ASSERT(scratchpad->scratch.size() == NUM_SIDES * 2);
+    std::array<std::vector<int>*, NUM_SIDES> wire_mux_on_track;
+    std::array<std::vector<int>*, NUM_SIDES> incoming_wire_label;
     int num_incoming_wires[NUM_SIDES];
     int num_ending_wires[NUM_SIDES];
     int num_wire_muxes[NUM_SIDES];
 
+    wire_mux_on_track.fill(nullptr);
+    incoming_wire_label.fill(nullptr);
+
     /* "Label" the wires around the switch block by connectivity. */
     for (e_side side : {TOP, RIGHT, BOTTOM, LEFT}) {
         /* Assume the channel segment doesn't exist. */
-        wire_mux_on_track[side].clear();
-        incoming_wire_label[side].clear();
+        wire_mux_on_track[side] = nullptr;
+        incoming_wire_label[side] = nullptr;
         num_incoming_wires[side] = 0;
         num_ending_wires[side] = 0;
         num_wire_muxes[side] = 0;
@@ -2437,30 +2418,27 @@ void load_sblock_pattern_lookup(const int i,
         int chan = (vert ? i : j);
         int sb_seg = (vert ? j : i);
         int seg = (pos_dir ? (sb_seg + 1) : sb_seg);
-        int chan_width = get_chan_width(side, nodes_per_chan);
+
         const t_chan_seg_details* seg_details = (vert ? chan_details_y[chan][seg] : chan_details_x[seg][chan]).data();
         if (seg_details[0].length() <= 0)
             continue;
 
         /* Figure out all the tracks on a side that are ending and the
          * ones that are passing through and have a SB. */
-        enum Direction end_dir = (pos_dir ? Direction::DEC : Direction::INC);
-
-        /*
-         * AA: Different channel widths have different seg_details 
-         * warranting modified calls to static routines in this file. 
-         */
+        enum e_direction end_dir = (pos_dir ? DEC_DIRECTION : INC_DIRECTION);
+        incoming_wire_label[side] = &scratchpad->scratch[NUM_SIDES + side];
         label_incoming_wires(chan, seg, sb_seg,
-                             seg_details, chan_len, end_dir, chan_width,
+                             seg_details, chan_len, end_dir, nodes_per_chan->max,
                              incoming_wire_label[side],
                              &num_incoming_wires[side],
                              &num_ending_wires[side]);
 
         /* Figure out all the tracks on a side that are starting. */
         int dummy;
-        enum Direction start_dir = (pos_dir ? Direction::INC : Direction::DEC);
+        enum e_direction start_dir = (pos_dir ? INC_DIRECTION : DEC_DIRECTION);
+        wire_mux_on_track[side] = &scratchpad->scratch[side];
         label_wire_muxes(chan, seg,
-                         seg_details, UNDEFINED, chan_len, start_dir, chan_width,
+                         seg_details, UNDEFINED, chan_len, start_dir, nodes_per_chan->max,
                          false, wire_mux_on_track[side], &num_wire_muxes[side], &dummy);
     }
 
@@ -2486,8 +2464,8 @@ void load_sblock_pattern_lookup(const int i,
          * passing and ending wires so the above statement still holds
          * if you replace "passing" by "incoming" */
 
-        if (!incoming_wire_label[side_cw].empty()) {
-            for (int ichan = 0; ichan < get_chan_width((e_side)side_cw, nodes_per_chan); ichan++) {
+        if (incoming_wire_label[side_cw]) {
+            for (int ichan = 0; ichan < nodes_per_chan->max; ichan++) {
                 int itrack = ichan;
                 if (side_cw == TOP || side_cw == BOTTOM) {
                     itrack = ichan % nodes_per_chan->y_list[i];
@@ -2495,12 +2473,11 @@ void load_sblock_pattern_lookup(const int i,
                     itrack = ichan % nodes_per_chan->x_list[j];
                 }
 
-                if (incoming_wire_label[side_cw][itrack] != UN_SET) {
+                if ((*incoming_wire_label[side_cw])[itrack] != UN_SET) {
                     int mux = get_simple_switch_block_track((enum e_side)side_cw,
                                                             (enum e_side)to_side,
-                                                            incoming_wire_label[side_cw][ichan],
+                                                            (*incoming_wire_label[side_cw])[ichan],
                                                             switch_block_type,
-                                                            num_wire_muxes[to_side],
                                                             num_wire_muxes[to_side]);
 
                     if (sblock_pattern[i][j][side_cw][to_side][itrack][0] == UN_SET) {
@@ -2512,8 +2489,8 @@ void load_sblock_pattern_lookup(const int i,
             }
         }
 
-        if (!incoming_wire_label[side_ccw].empty()) {
-            for (int ichan = 0; ichan < get_chan_width((e_side)side_ccw, nodes_per_chan); ichan++) {
+        if (incoming_wire_label[side_ccw]) {
+            for (int ichan = 0; ichan < nodes_per_chan->max; ichan++) {
                 int itrack = ichan;
                 if (side_ccw == TOP || side_ccw == BOTTOM) {
                     itrack = ichan % nodes_per_chan->y_list[i];
@@ -2521,13 +2498,11 @@ void load_sblock_pattern_lookup(const int i,
                     itrack = ichan % nodes_per_chan->x_list[j];
                 }
 
-                if (incoming_wire_label[side_ccw][itrack] != UN_SET) {
+                if ((*incoming_wire_label[side_ccw])[itrack] != UN_SET) {
                     int mux = get_simple_switch_block_track((enum e_side)side_ccw,
                                                             (enum e_side)to_side,
-                                                            incoming_wire_label[side_ccw][ichan],
-                                                            switch_block_type,
-                                                            num_wire_muxes[to_side],
-                                                            num_wire_muxes[to_side]);
+                                                            (*incoming_wire_label[side_ccw])[ichan],
+                                                            switch_block_type, num_wire_muxes[to_side]);
 
                     if (sblock_pattern[i][j][side_ccw][to_side][itrack][0] == UN_SET) {
                         sblock_pattern[i][j][side_ccw][to_side][itrack][0] = mux;
@@ -2538,17 +2513,17 @@ void load_sblock_pattern_lookup(const int i,
             }
         }
 
-        if (!incoming_wire_label[side_opp].empty()) {
-            for (int itrack = 0; itrack < get_chan_width((e_side)side_opp, nodes_per_chan); itrack++) {
+        if (incoming_wire_label[side_opp]) {
+            for (int itrack = 0; itrack < nodes_per_chan->max; itrack++) {
                 /* not ending wire nor passing wire with sblock */
-                if (incoming_wire_label[side_opp][itrack] != UN_SET) {
+                if ((*incoming_wire_label[side_opp])[itrack] != UN_SET) {
                     /* corner sblocks for sure have no opposite channel segments so don't care about them */
-                    if (incoming_wire_label[side_opp][itrack] < num_ending_wires[side_opp]) {
+                    if ((*incoming_wire_label[side_opp])[itrack] < num_ending_wires[side_opp]) {
                         /* The ending wires in core sblocks form N-to-N assignment problem, so can
                          * use any pattern such as Wilton */
                         /* In the direct connect case, I know for sure the init mux is at the same track #
                          * as this ending wire, but still need to find the init mux label for Fs > 3 */
-                        int mux = find_label_of_track(wire_mux_on_track[to_side],
+                        int mux = find_label_of_track(wire_mux_on_track[to_side]->data(),
                                                       num_wire_muxes[to_side], itrack);
                         sblock_pattern[i][j][side_opp][to_side][itrack][0] = mux;
                     } else {
@@ -2567,23 +2542,24 @@ void load_sblock_pattern_lookup(const int i,
     }
 }
 
-/* Labels the muxes on that side (seg_num, chan_num, direction). The returned array
- * maps a label to the actual track #: array[0] = <the track number of the first/lowest mux>
- * This routine orders wire muxes by their natural order, i.e. track #
- * If seg_type_index == UNDEFINED, all segments in the channel are considered. Otherwise this routine
- * only looks at segments that belong to the specified segment type. */
-
 static void label_wire_muxes(const int chan_num,
                              const int seg_num,
                              const t_chan_seg_details* seg_details,
                              const int seg_type_index,
                              const int max_len,
-                             const enum Direction dir,
+                             const enum e_direction dir,
                              const int max_chan_width,
                              const bool check_cb,
-                             std::vector<int>& labels,
+                             std::vector<int>* labels_ptr,
                              int* num_wire_muxes,
                              int* num_wire_muxes_cb_restricted) {
+    /* Labels the muxes on that side (seg_num, chan_num, direction). The returned array
+     * maps a label to the actual track #: array[0] = <the track number of the first/lowest mux>
+     * This routine orders wire muxes by their natural order, i.e. track #
+     * If seg_type_index == UNDEFINED, all segments in the channel are considered. Otherwise this routine
+     * only looks at segments that belong to the specified segment type. */
+
+    std::vector<int>& labels = *labels_ptr;
     int itrack, start, end, num_labels, num_labels_restricted, pass;
     bool is_endpoint;
 
@@ -2622,7 +2598,7 @@ static void label_wire_muxes(const int chan_num,
 
             /* Determine if we are a wire startpoint */
             is_endpoint = (seg_num == start);
-            if (Direction::DEC == seg_details[itrack].direction()) {
+            if (DEC_DIRECTION == seg_details[itrack].direction()) {
                 is_endpoint = (seg_num == end);
             }
 
@@ -2656,15 +2632,16 @@ static void label_incoming_wires(const int chan_num,
                                  const int sb_seg,
                                  const t_chan_seg_details* seg_details,
                                  const int max_len,
-                                 const enum Direction dir,
+                                 const enum e_direction dir,
                                  const int max_chan_width,
-                                 std::vector<int>& labels,
+                                 std::vector<int>* labels_ptr,
                                  int* num_incoming_wires,
                                  int* num_ending_wires) {
     /* Labels the incoming wires on that side (seg_num, chan_num, direction).
      * The returned array maps a track # to a label: array[0] = <the new hash value/label for track 0>,
      * the labels 0,1,2,.. identify consecutive incoming wires that have sblock (passing wires with sblock and ending wires) */
 
+    std::vector<int>& labels = *labels_ptr;
     int itrack, start, end, num_passing, num_ending, pass;
     bool sblock_exists, is_endpoint;
 
@@ -2687,7 +2664,7 @@ static void label_incoming_wires(const int chan_num,
 
                 /* Determine if we are a wire endpoint */
                 is_endpoint = (seg_num == end);
-                if (Direction::DEC == seg_details[itrack].direction()) {
+                if (DEC_DIRECTION == seg_details[itrack].direction()) {
                     is_endpoint = (seg_num == start);
                 }
 
@@ -2724,7 +2701,7 @@ static void label_incoming_wires(const int chan_num,
     *num_ending_wires = num_ending;
 }
 
-static int find_label_of_track(const std::vector<int>& wire_mux_on_track,
+static int find_label_of_track(int* wire_mux_on_track,
                                int num_wire_muxes,
                                int from_track) {
     /* Returns the index/label in array wire_mux_on_track whose entry equals from_track. If none are
@@ -2787,6 +2764,36 @@ static bool should_apply_switch_override(int switch_override) {
     return false;
 }
 
-inline int get_chan_width(enum e_side side, const t_chan_width* nodes_per_chan) {
-    return (side == TOP || side == BOTTOM ? nodes_per_chan->y_max : nodes_per_chan->x_max);
+/*
+ * Utility
+ */
+void add_to_rr_node_indices(t_rr_node_indices& rr_node_indices, const t_rr_graph_storage& rr_nodes, int inode) {
+    const t_rr_node& rr_node = rr_nodes[inode];
+
+    for (int x = rr_node.xlow(); x <= rr_node.xhigh(); ++x) {
+        for (int y = rr_node.ylow(); y <= rr_node.yhigh(); ++y) {
+            auto rr_type = rr_node.type();
+            if (rr_type == IPIN || rr_type == OPIN) {
+                insert_at_ptc_index(rr_node_indices[rr_node.type()][x][y][rr_node.side()], rr_node.ptc_num(), inode);
+            } else if (rr_type == CHANX) {
+                //CHANX uses odd swapped x/y indices....
+                insert_at_ptc_index(rr_node_indices[rr_node.type()][y][x][0], rr_node.ptc_num(), inode);
+            } else {
+                insert_at_ptc_index(rr_node_indices[rr_node.type()][x][y][0], rr_node.ptc_num(), inode);
+            }
+        }
+    }
+}
+
+void insert_at_ptc_index(std::vector<int>& rr_indices, int ptc, int inode) {
+    if (ptc >= int(rr_indices.size())) {
+        rr_indices.resize(ptc + 1, OPEN); //Functional, but inefficient allocations...
+    }
+
+    if (rr_indices[ptc] == inode) {
+        return;
+    }
+
+    VTR_ASSERT(rr_indices[ptc] == OPEN);
+    rr_indices[ptc] = inode;
 }

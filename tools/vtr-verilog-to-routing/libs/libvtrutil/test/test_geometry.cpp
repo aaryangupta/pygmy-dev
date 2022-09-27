@@ -1,9 +1,6 @@
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/catch_approx.hpp"
+#include "catch.hpp"
 
 #include "vtr_geometry.h"
-
-using namespace Catch;
 
 TEST_CASE("Point", "[vtr_geometry/Point]") {
     vtr::Point<int> p1(5, 3);

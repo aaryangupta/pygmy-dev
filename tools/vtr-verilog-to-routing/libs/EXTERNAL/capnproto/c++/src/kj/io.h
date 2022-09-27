@@ -21,13 +21,15 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !KJ_HEADER_WARNINGS
+#pragma GCC system_header
+#endif
+
 #include <stddef.h>
 #include "common.h"
 #include "array.h"
 #include "exception.h"
 #include <stdint.h>
-
-KJ_BEGIN_HEADER
 
 namespace kj {
 
@@ -298,6 +300,7 @@ public:
 
 private:
   int fd;
+  UnwindDetector unwindDetector;
 };
 
 inline auto KJ_STRINGIFY(const AutoCloseFd& fd)
@@ -434,5 +437,3 @@ private:
 #endif  // _WIN32
 
 }  // namespace kj
-
-KJ_END_HEADER

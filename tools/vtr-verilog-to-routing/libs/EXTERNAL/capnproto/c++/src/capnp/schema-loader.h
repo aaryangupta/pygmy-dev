@@ -21,11 +21,13 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
+
 #include "schema.h"
 #include <kj/memory.h>
 #include <kj/mutex.h>
-
-CAPNP_BEGIN_HEADER
 
 namespace capnp {
 
@@ -166,5 +168,3 @@ inline void SchemaLoader::loadCompiledTypeAndDependencies() {
 }
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

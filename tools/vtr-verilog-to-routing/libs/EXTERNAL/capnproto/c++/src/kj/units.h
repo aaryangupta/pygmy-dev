@@ -25,10 +25,12 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !KJ_HEADER_WARNINGS
+#pragma GCC system_header
+#endif
+
 #include "common.h"
 #include <inttypes.h>
-
-KJ_BEGIN_HEADER
 
 namespace kj {
 
@@ -168,14 +170,8 @@ public:
     return unit1PerUnit2 / other.unit1PerUnit2;
   }
 
-  template <typename OtherNumber>
-  inline constexpr bool operator==(const UnitRatio<OtherNumber, Unit1, Unit2>& other) const {
-    return unit1PerUnit2 == other.unit1PerUnit2;
-  }
-  template <typename OtherNumber>
-  inline constexpr bool operator!=(const UnitRatio<OtherNumber, Unit1, Unit2>& other) const {
-    return unit1PerUnit2 != other.unit1PerUnit2;
-  }
+  inline bool operator==(UnitRatio other) const { return unit1PerUnit2 == other.unit1PerUnit2; }
+  inline bool operator!=(UnitRatio other) const { return unit1PerUnit2 != other.unit1PerUnit2; }
 
 private:
   Number unit1PerUnit2;
@@ -376,7 +372,7 @@ private:
   template <typename OtherNumber, typename OtherUnit>
   friend class Quantity;
 
-  template <typename Number1, typename Number2, typename Unit2, typename>
+  template <typename Number1, typename Number2, typename Unit2>
   friend inline constexpr auto operator*(Number1 a, Quantity<Number2, Unit2> b)
       -> Quantity<decltype(Number1() * Number2()), Unit2>;
 };
@@ -396,8 +392,7 @@ inline constexpr auto unit() -> decltype(Unit_<T>::get()) { return Unit_<T>::get
 // unit<Quantity<T, U>>() returns a Quantity of value 1.  It also, intentionally, works on basic
 // numeric types.
 
-template <typename Number1, typename Number2, typename Unit,
-          typename = EnableIf<isIntegralOrBounded<Number1>()>>
+template <typename Number1, typename Number2, typename Unit>
 inline constexpr auto operator*(Number1 a, Quantity<Number2, Unit> b)
     -> Quantity<decltype(Number1() * Number2()), Unit> {
   return Quantity<decltype(Number1() * Number2()), Unit>(a * b.value, unsafe);
@@ -428,13 +423,6 @@ class Absolute {
   //   units, which is actually totally logical and kind of neat.
 
 public:
-  inline constexpr Absolute(MaxValue_): value(maxValue) {}
-  inline constexpr Absolute(MinValue_): value(minValue) {}
-  // Allow initialization from maxValue and minValue.
-  // TODO(msvc): decltype(maxValue) and decltype(minValue) deduce unknown-type for these function
-  // parameters, causing the compiler to complain of a duplicate constructor definition, so we
-  // specify MaxValue_ and MinValue_ types explicitly.
-
   inline constexpr Absolute operator+(const T& other) const { return Absolute(value + other); }
   inline constexpr Absolute operator-(const T& other) const { return Absolute(value - other); }
   inline constexpr T operator-(const Absolute& other) const { return value - other.value; }
@@ -1050,14 +1038,14 @@ inline constexpr T unboundAs(U value) {
 
 template <uint64_t requestedMax, uint64_t maxN, typename T>
 inline constexpr T unboundMax(Bounded<maxN, T> value) {
-  // Explicitly unguard expecting a value that is at most `maxN`.
+  // Explicitly ungaurd expecting a value that is at most `maxN`.
   static_assert(maxN <= requestedMax, "possible overflow detected");
   return value.unwrap();
 }
 
 template <uint64_t requestedMax, uint value>
 inline constexpr uint unboundMax(BoundedConst<value>) {
-  // Explicitly unguard expecting a value that is at most `maxN`.
+  // Explicitly ungaurd expecting a value that is at most `maxN`.
   static_assert(value <= requestedMax, "overflow detected");
   return value;
 }
@@ -1065,7 +1053,7 @@ inline constexpr uint unboundMax(BoundedConst<value>) {
 template <uint bits, typename T>
 inline constexpr auto unboundMaxBits(T value) ->
     decltype(unboundMax<maxValueForBits<bits>()>(value)) {
-  // Explicitly unguard expecting a value that fits into `bits` bits.
+  // Explicitly ungaurd expecting a value that fits into `bits` bits.
   return unboundMax<maxValueForBits<bits>()>(value);
 }
 
@@ -1179,5 +1167,3 @@ inline constexpr Range<Quantity<Bounded<value, uint>, Unit>>
 }
 
 }  // namespace kj
-
-KJ_END_HEADER

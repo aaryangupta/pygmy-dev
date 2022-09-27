@@ -42,17 +42,6 @@
 #include "vpr_net_pins_matrix.h"
 
 /**
- * @brief Saves the placement criticality parameters
- *
- * crit_exponent: The criticality exponent used to sharpen the criticalities
- * crit_limit:    The limit to consider a pin as timing critical
- */
-struct PlaceCritParams {
-    float crit_exponent;
-    float crit_limit;
-};
-
-/**
  * @brief PlacerCriticalities returns the clustered netlist connection criticalities
  *        used by the placer ('sharpened' by a criticality exponent).
  *
@@ -125,13 +114,7 @@ class PlacerCriticalities {
      * If out of sync, then the criticalities cannot be incrementally updated on
      * during the next timing analysis iteration.
      */
-    void update_criticalities(const SetupTimingInfo* timing_info, const PlaceCritParams& crit_params);
-
-    ///@bried Enable the recompute_required flag to enforce from scratch update.
-    void set_recompute_required();
-
-    ///@brief From scratch update. See timing_place.cpp for more.
-    void recompute_criticalities();
+    void update_criticalities(const SetupTimingInfo* timing_info, float criticality_exponent);
 
     ///@brief Override the criticality of a particular connection.
     void set_criticality(ClusterNetId net, int ipin, float crit_val);
@@ -168,6 +151,9 @@ class PlacerCriticalities {
     ///@brief Incremental update. See timing_place.cpp for more.
     void incr_update_criticalities(const SetupTimingInfo* timing_info);
 
+    ///@brief From scratch update. See timing_place.cpp for more.
+    void recompute_criticalities();
+
     ///@brief Flag that turns on/off the update_criticalities() routine.
     bool update_enabled = true;
 
@@ -178,13 +164,6 @@ class PlacerCriticalities {
      * if this method wasn't called updated after the previous timing info update.
      */
     bool recompute_required = true;
-
-    /**
-     * @brief if this is first time to call update_criticality
-     * 
-     * This can be used for incremental criticality update and also incrementally update the highly critical pins
-     */
-    bool first_time_update_criticality = true;
 };
 
 /**
@@ -238,9 +217,6 @@ class PlacerSetupSlacks {
      * during the next timing analysis iteration.
      */
     void update_setup_slacks(const SetupTimingInfo* timing_info);
-
-    ///@bried Enable the recompute_required flag to enforce from scratch update.
-    void set_recompute_required() { recompute_required = true; }
 
     ///@brief Override the setup slack of a particular connection.
     void set_setup_slack(ClusterNetId net, int ipin, float slack_val);

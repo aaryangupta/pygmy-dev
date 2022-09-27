@@ -65,9 +65,9 @@ enum t_coordinate_system {
 };
 
 /**
- * Justification options (used for text and surfaces)
+ * Text justification options
  */
-enum class justification {
+enum class text_just {
   /**
    * Center Justification: used for both vertical and horizontal justification
    */
@@ -279,18 +279,18 @@ public:
   void set_text_rotation(double degrees);
 
   /**
-   * set horizontal justification (used for text and surfaces).
+   * set horizontal text justification.
    *
    * @param horiz_just Options: center, left and right justification.
    */
-  void set_horiz_justification(justification horiz_just);
+  void set_horiz_text_just(text_just horiz_just);
 
   /**
-   * set vertical justification (used for text and surfaces).
+   * set vertical text justification.
    *
    * @param vert_just Options: center, top and bottom justification.
    */
-  void set_vert_justification(justification vert_just);
+  void set_vert_text_just(text_just vert_just);
 
   /**** Functions to draw various graphics primitives ****/
 
@@ -425,10 +425,9 @@ public:
    * Draw a surface
    *
    * @param surface The surface to draw
-   * @param anchor_point The anchor_point point of the drawn surface.
-   * @param scale_factor The scaling factor of the drawn surface (optional)
+   * @param top_left The corner point of the drawn surface.
    */
-  void draw_surface(surface *p_surface, point2d anchor_point, double scale_factor = 1);
+  void draw_surface(surface *surface, point2d top_left);
 
   /**
    * load a png image
@@ -517,11 +516,11 @@ private:
   // the rotation angle variable used in rotating text
   double rotation_angle;
 
-  // Current horizontal justification (used for text and surfaces)
-  justification horiz_justification = justification::center;
+  // Current horizontal text justification
+  text_just horiz_text_just = text_just::center;
 
-  // Current vertical justification (used for text and surfaces)
-  justification vert_justification = justification::center;
+  // Current vertical text justification
+  text_just vert_text_just = text_just::center;
 
   // Current line width
   int current_line_width = 1;

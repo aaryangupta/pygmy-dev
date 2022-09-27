@@ -1,4 +1,7 @@
-module down_counter ( clk, out1, rst1, rst2 );
+module down_counter
+(
+    clk, out1
+);
     input rst1, rst2, clk;
     output reg [15:0] out1;
 

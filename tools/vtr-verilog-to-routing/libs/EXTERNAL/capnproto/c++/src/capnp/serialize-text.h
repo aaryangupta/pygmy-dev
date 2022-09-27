@@ -21,12 +21,14 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
+
 #include <kj/string.h>
 #include "dynamic.h"
 #include "orphan.h"
 #include "schema.h"
-
-CAPNP_BEGIN_HEADER
 
 namespace capnp {
 
@@ -89,5 +91,3 @@ inline Orphan<T> TextCodec::decode(kj::StringPtr input, Orphanage orphanage) con
 }
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

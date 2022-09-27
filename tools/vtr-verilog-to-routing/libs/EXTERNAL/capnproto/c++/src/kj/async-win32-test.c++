@@ -24,7 +24,6 @@
 #include "async-win32.h"
 #include "thread.h"
 #include "test.h"
-#include "mutex.h"
 
 namespace kj {
 namespace {

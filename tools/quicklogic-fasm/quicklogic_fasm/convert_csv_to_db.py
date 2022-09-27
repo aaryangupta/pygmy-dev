@@ -6,7 +6,20 @@ from fasm_utils.db_entry import DbEntry
 from fasm_utils.segbits import Bit
 from techfile_to_cell_loc import TechFile
 from contextlib import nullcontext
+from cdl_parser import read_and_parse_cdl_file
 
+cdl_file=""
+
+# A map of grid row coordinates to bit WL ranges.
+wl_map = {
+}
+
+# A map of grid col coortinates to bit BL ranges
+bl_map = {
+}
+
+maxcord_x = 0
+maxcord_y = 0
 
 class QLDbEntry(DbEntry):
     '''Class for extracting DB entries from CSV files for QuickLogic FPGAs.
@@ -38,80 +51,6 @@ class QLDbEntry(DbEntry):
         'macro_interface_top': 'INTERFACE',
         'macro_interface_top_left': 'INTERFACE',
         'macro_interface_top_right': 'INTERFACE'
-    }
-
-    # A map of grid row coordinates to bit WL ranges.
-    # Taken from QL732B_cdl.cmd
-    wl_map = {
-        1: (1, 28,),
-        2: (29, 56,),
-        3: (57, 84,),
-        4: (85, 112,),
-        5: (113, 140,),
-        6: (141, 168,),
-        7: (169, 196,),
-        8: (197, 224,),
-        9: (225, 252,),
-        10: (253, 281,),
-        11: (282, 309,),
-        12: (310, 337,),
-        13: (338, 365,),
-        14: (366, 393,),
-        15: (394, 421,),
-        16: (422, 449,),
-        17: (450, 477,),
-        18: (478, 505,),
-        19: (506, 533,),
-        20: (534, 561,),
-        21: (562, 589,),
-        22: (590, 617,),
-        23: (618, 645,),
-        24: (646, 674,),
-        25: (675, 702,),
-        26: (703, 730,),
-        27: (731, 758,),
-        28: (759, 786,),
-        29: (787, 814,),
-        30: (815, 842,),
-    }
-
-    # A map of grid col coortinates to bit BL ranges
-    # Taken from QL732B_cdl.cmd
-    bl_map = {
-        0: (1, 21,),
-        1: (22, 42,),
-        2: (43, 63,),
-        3: (64, 84,),
-        4: (85, 105,),
-        5: (106, 126,),
-        6: (127, 147,),
-        7: (148, 168,),
-        8: (169, 189,),
-        9: (190, 210,),
-        10: (211, 231,),
-        11: (232, 252,),
-        12: (253, 273,),
-        13: (274, 294,),
-        14: (295, 315,),
-        15: (316, 336,),
-        16: (337, 357,),
-        17: (358, 378,),
-        18: (379, 399,),
-        19: (400, 420,),
-        20: (421, 441,),
-        21: (442, 462,),
-        22: (463, 483,),
-        23: (484, 504,),
-        24: (505, 525,),
-        25: (526, 546,),
-        26: (547, 567,),
-        27: (568, 588,),
-        28: (589, 609,),
-        29: (610, 630,),
-        30: (631, 651,),
-        31: (652, 672,),
-        32: (673, 693,),
-        33: (694, 714,),
     }
 
     dbentrytemplate = 'X{site[0]}Y{site[1]}.{ctype}.{spectype}.{sig}'
@@ -176,15 +115,18 @@ class QLDbEntry(DbEntry):
         row = None
         col = None
 
-        for i, (l, h) in QLDbEntry.wl_map.items():
+        for i, (l, h) in wl_map.items():
             if wl >= l and wl <= h:
-                row = i
+                row = i + 1
                 break
 
-        for i, (l, h) in QLDbEntry.bl_map.items():
+        for i, (l, h) in bl_map.items():
             if bl >= l and bl <= h:
                 col = i
                 break
+
+        assert row is not None, (wl, bl)
+        assert col is not None, (wl, bl)
 
         return col, row
 
@@ -312,13 +254,18 @@ class QLDbEntry(DbEntry):
                 else:
                     newsignature = part
 
+            # FIXME: Special case for PP3: fixing missing FASM feature for designs with clock
+            if (dbentry.signature == ".macro_interface.I_if_block.I191.I_jcb" and dbentry.coords[0].x == 12 and dbentry.coords[0].y == 13):
+                newsignature = "INV.ASSPInvPortAlias"
+                newspectype = "ASSP"
+
             newcoord = (self.coords[0].x + dbentry.coords[0].x,
                         self.coords[0].y + dbentry.coords[0].y)
-            assert newcoord[0] < 844 and newcoord[1] < 716, \
+            assert newcoord[0] < maxcord_x and newcoord[1] < maxcord_y, \
                 "Coordinate values are exceeding the maximum values: \
                  computed ({} {}) limit ({} {})".format(newcoord[0],
                                                         newcoord[1],
-                                                        844, 716)
+                                                        maxcord_x, maxcord_y)
             newentry = QLDbEntry(
                 newsignature,
                 newcoord,
@@ -327,6 +274,88 @@ class QLDbEntry(DbEntry):
                 newspectype)
             newentry.update_signature(True)
             yield newentry
+
+def identify_exclusive_feature_groups(entries):
+    """
+    Identifies exclusive FASM features and creates groups of them. Returns a
+    dict indexed by group names containing sets of the features.
+    """
+
+    groups = {}
+
+    # Scan entries, form groups
+    for entry in entries:
+
+        # Get the feature and split it into fields
+        feature = entry.signature
+        parts = feature.split(".")
+
+        # Check if this feature may be a part of a group.
+        # This is EOS-S3 specific. Each routing mux is encoded as one-hot.
+        # A mux feature has "I_pg<n>" suffix.
+        if parts[1] == "ROUTING" and parts[-1].startswith("I_pg"):
+
+            # Create a group
+            group = ".".join(parts[:-1])
+            if group not in groups:
+                groups[group] = set()
+
+            # Add the feature to the group
+            groups[group].add(feature)
+
+    return groups
+
+
+def group_entries(entries, groups):
+    """
+    Groups exclusive features together by identifying all bits that are common
+    to each group and then making each feature clear them. Leave bits that are
+    set intact.
+    """
+
+    # Index entries by their signatures
+    entries = {e.signature: e for e in entries}
+
+    # Identify zero bits for each group
+    zero_bits = {}
+    for group, features in groups.items():
+
+        # Collect bits
+        bits = set()
+        for feature in features:
+            for bit in entries[feature].coords:
+                bits.add(Bit(x=bit.x, y=bit.y, isset=False))
+
+        # Store bits
+        zero_bits[group] = bits
+
+    # Group entries by adding zero-bits to them
+    for group, features in groups.items():
+        bits = zero_bits[group]
+
+        for feature in features:
+            entry = entries[feature]
+
+            # Append zero bits
+            for bit in bits:
+
+                # Do not add the bit cleared if it is set
+                key = Bit(x=bit.x, y=bit.y, isset=True)
+                if key in entry.coords:
+                    continue
+
+                # Do not add it if it is already cleared
+                if bit in entry.coords:
+                    continue
+
+                # Add the cleared bit
+                entry.coords.append(bit)
+
+            # Sort bits
+            entry.coords.sort(key=lambda bit: (bit.x, bit.y))
+
+    # Return entries as a list
+    return list(entries.values())
 
 
 def process_csv_data(inputfile: str):
@@ -392,6 +421,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--cdl",
+        required=True,
+        help="The path to device specific cdl file"
+    )
+
+    parser.add_argument(
         "--include",
         nargs='+',
         help="The list of include files to use for macro replacement"
@@ -409,6 +444,15 @@ if __name__ == "__main__":
         help="The input TechFile XML file"
     )
     args = parser.parse_args()
+
+    # Load WL- and BL-maps
+    cdl_file = args.cdl
+    cdl_data = read_and_parse_cdl_file(cdl_file)
+    wl_map = cdl_data["wl_map"]
+    bl_map = cdl_data["bl_map"]
+
+    maxcord_x = list(wl_map.values())[-1][-1] + 2
+    maxcord_y = list(bl_map.values())[-1][-1] + 2
 
     # Load CSV files. If the CSV is flattened, just print the output
     if not args.include:
@@ -485,6 +529,11 @@ if __name__ == "__main__":
                     macrolibrary[dbentry.macrotype], invertermap):
                 flattenedlibrary.append(flattenedentry)
 
+    # Identify exclusive feature groups
+    groups = identify_exclusive_feature_groups(flattenedlibrary)
+    # Group entries
+    flattenedlibrary = group_entries(flattenedlibrary, groups)
+
     # Save the final database and perform sanity checks
     with open(args.outfile, 'w') as output:
         with (open(args.routing_bits_outfile, 'w')
@@ -494,8 +543,9 @@ if __name__ == "__main__":
                     routingoutput.write(str(flattenedentry))
                 else:
                     output.write(str(flattenedentry))
-                coordstr = str(flattenedentry).split(' ')[-1]
-                featurestr = str(flattenedentry).split(' ')[0]
+
+                coordstr = str(flattenedentry).split(' ', maxsplit=1)[-1]
+                featurestr = flattenedentry.signature
                 if coordstr not in coordtoorig:
                     coordtoorig[coordstr] = flattenedentry
                 else:
@@ -513,7 +563,8 @@ if __name__ == "__main__":
     print("Max repetition count: {}".format(max(coordset.values())))
     print("Times the names were repeated:  {}".format(timesrepeatedname))
     print("Max repetition count: {}".format(max(nameset.values())))
-    print("Max WL: {}".format(
-        max([int(x.split('_')[0]) for x in coordset.keys()])))
-    print("Max BL: {}".format(
-        max([int(x.split('_')[1]) for x in coordset.keys()])))
+
+    max_wl = max([b.x for e in flattenedlibrary for b in e.coords])
+    print("Max WL: {}".format(max_wl))
+    max_bl = max([b.y for e in flattenedlibrary for b in e.coords])
+    print("Max BL: {}".format(max_bl))

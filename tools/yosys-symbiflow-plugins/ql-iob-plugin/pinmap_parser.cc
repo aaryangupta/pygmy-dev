@@ -19,26 +19,28 @@
  */
 #include "pinmap_parser.hh"
 
+#include <fstream>
 #include <sstream>
 
 // ============================================================================
 
-bool PinmapParser::parse(const std::string &a_FileName)
-{
+bool PinmapParser::parse (const std::string& a_FileName) {
 
     // Open the file
-    std::ifstream file(a_FileName.c_str());
+    std::fstream file(a_FileName.c_str(), std::ifstream::in);
 
     // Parse it
-    return parse(file);
+    std::istream* stream = &file;
+    return parse(stream);
 }
 
-const std::vector<PinmapParser::Entry> PinmapParser::getEntries() const { return m_Entries; }
+const std::vector<PinmapParser::Entry> PinmapParser::getEntries() const {
+    return m_Entries;
+}
 
 // ============================================================================
 
-std::vector<std::string> PinmapParser::getFields(const std::string &a_String)
-{
+std::vector<std::string> PinmapParser::getFields (const std::string& a_String) {
 
     std::vector<std::string> fields;
     std::stringstream ss(a_String);
@@ -53,29 +55,23 @@ std::vector<std::string> PinmapParser::getFields(const std::string &a_String)
     return fields;
 }
 
-bool PinmapParser::parseHeader(std::ifstream &a_Stream)
-{
+bool PinmapParser::parseHeader (std::istream*& a_Stream) {
 
     // Get the header line
     std::string header;
-    std::getline(a_Stream, header);
+    std::getline(*a_Stream, header);
 
     // Parse fields
     m_Fields = getFields(header);
-    if (m_Fields.empty()) {
-        return false;
-    }
-
     return true;
 }
 
-bool PinmapParser::parseData(std::ifstream &a_Stream)
-{
+bool PinmapParser::parseData (std::istream*& a_Stream) {
 
     // Parse lines as they come
-    while (a_Stream.good()) {
+    while (a_Stream->good()) {
         std::string line;
-        std::getline(a_Stream, line);
+        std::getline(*a_Stream, line);
 
         if (line.empty()) {
             continue;
@@ -86,12 +82,7 @@ bool PinmapParser::parseData(std::ifstream &a_Stream)
 
         // Assign data fields to columns
         Entry entry;
-        for (size_t i = 0; i < data.size(); ++i) {
-
-            if (i >= m_Fields.size()) {
-                return false;
-            }
-
+        for (size_t i=0; i<data.size(); ++i) {
             entry[m_Fields[i]] = data[i];
         }
 
@@ -101,10 +92,9 @@ bool PinmapParser::parseData(std::ifstream &a_Stream)
     return true;
 }
 
-bool PinmapParser::parse(std::ifstream &a_Stream)
-{
+bool PinmapParser::parse (std::istream*& a_Stream) {
 
-    if (!a_Stream.good()) {
+    if (a_Stream == nullptr) {
         return false;
     }
 

@@ -34,7 +34,7 @@ float get_rr_cong_cost(int inode, float pres_fac);
 /* Returns the base cost of using this rr_node */
 inline float get_single_rr_cong_base_cost(int inode) {
     auto& device_ctx = g_vpr_ctx.device();
-    auto cost_index = device_ctx.rr_graph.node_cost_index(RRNodeId(inode));
+    auto cost_index = device_ctx.rr_nodes[inode].cost_index();
 
     return device_ctx.rr_indexed_data[cost_index].base_cost;
 }
@@ -49,11 +49,10 @@ inline float get_single_rr_cong_acc_cost(int inode) {
 /* Returns the present congestion cost of using this rr_node */
 inline float get_single_rr_cong_pres_cost(int inode, float pres_fac) {
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
     int occ = route_ctx.rr_node_route_inf[inode].occ();
-    int capacity = rr_graph.node_capacity(RRNodeId(inode));
+    int capacity = device_ctx.rr_nodes[inode].capacity();
 
     if (occ >= capacity) {
         return (1. + pres_fac * (occ + 1 - capacity));
@@ -66,11 +65,10 @@ inline float get_single_rr_cong_pres_cost(int inode, float pres_fac) {
  * *ignoring* non-configurable edges */
 inline float get_single_rr_cong_cost(int inode, float pres_fac) {
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
     float pres_cost;
-    int overuse = route_ctx.rr_node_route_inf[inode].occ() - rr_graph.node_capacity(RRNodeId(inode));
+    int overuse = route_ctx.rr_node_route_inf[inode].occ() - device_ctx.rr_nodes[inode].capacity();
 
     if (overuse >= 0) {
         pres_cost = (1. + pres_fac * (overuse + 1));
@@ -78,12 +76,12 @@ inline float get_single_rr_cong_cost(int inode, float pres_fac) {
         pres_cost = 1.;
     }
 
-    auto cost_index = rr_graph.node_cost_index(RRNodeId(inode));
+    auto cost_index = device_ctx.rr_nodes[inode].cost_index();
 
     float cost = device_ctx.rr_indexed_data[cost_index].base_cost * route_ctx.rr_node_route_inf[inode].acc_cost * pres_cost;
 
     VTR_ASSERT_DEBUG_MSG(
-        cost == get_single_rr_cong_base_cost(inode) * get_single_rr_cong_acc_cost(inode) * get_single_rr_cong_pres_cost(inode, pres_fac),
+        cost == get_single_rr_cong_base_cost(inode) * get_single_rr_cong_base_cost(inode) * get_single_rr_cong_pres_cost(inode, pres_fac),
         "Single rr node congestion cost is inaccurate");
 
     return cost;
@@ -116,14 +114,14 @@ void print_traceback(const t_trace* trace);
 
 void print_rr_node_route_inf();
 void print_rr_node_route_inf_dot();
-void print_invalid_routing_info(bool is_flat);
+void print_invalid_routing_info();
 
 t_trace* alloc_trace_data();
 void free_trace_data(t_trace* trace);
 
 bool router_needs_lookahead(enum e_router_algorithm router_algorithm);
 
-std::string describe_unrouteable_connection(const int source_node, const int sink_node, bool is_flat);
+std::string describe_unrouteable_connection(const int source_node, const int sink_node);
 
 /* Creates a new t_heap object to be placed on the heap, if the new cost    *
  * given is lower than the current path_cost to this channel segment.  The  *

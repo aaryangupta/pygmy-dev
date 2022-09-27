@@ -97,8 +97,7 @@ static bool timing_driven_route_sink(
     SpatialRouteTreeLookup& spatial_rt_lookup,
     RouterStats& router_stats,
     route_budgets& budgeting_inf,
-    const RoutingPredictor& routing_predictor,
-    bool is_flat);
+    const RoutingPredictor& routing_predictor);
 
 template<typename ConnectionRouter>
 static bool timing_driven_pre_route_to_clock_root(
@@ -109,8 +108,7 @@ static bool timing_driven_pre_route_to_clock_root(
     int high_fanout_threshold,
     t_rt_node* rt_root,
     SpatialRouteTreeLookup& spatial_rt_lookup,
-    RouterStats& router_stats,
-    bool is_flat);
+    RouterStats& router_stats);
 
 void disable_expansion_and_remove_sink_from_route_tree_nodes(t_rt_node* node);
 
@@ -203,8 +201,7 @@ static bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
                                          const ClusteredPinAtomPinsLookup& netlist_pin_lookup,
                                          std::shared_ptr<SetupHoldTimingInfo> timing_info,
                                          std::shared_ptr<RoutingDelayCalculator> delay_calc,
-                                         ScreenUpdatePriority first_iteration_priority,
-                                         bool is_flat);
+                                         ScreenUpdatePriority first_iteration_priority);
 
 /************************ Subroutine definitions *****************************/
 bool try_timing_driven_route(const t_router_opts& router_opts,
@@ -214,8 +211,7 @@ bool try_timing_driven_route(const t_router_opts& router_opts,
                              const ClusteredPinAtomPinsLookup& netlist_pin_lookup,
                              std::shared_ptr<SetupHoldTimingInfo> timing_info,
                              std::shared_ptr<RoutingDelayCalculator> delay_calc,
-                             ScreenUpdatePriority first_iteration_priority,
-                             bool is_flat) {
+                             ScreenUpdatePriority first_iteration_priority) {
     switch (router_opts.router_heap) {
         case e_heap_type::BINARY_HEAP:
             return try_timing_driven_route_tmpl<ConnectionRouter<BinaryHeap>>(
@@ -226,8 +222,7 @@ bool try_timing_driven_route(const t_router_opts& router_opts,
                 netlist_pin_lookup,
                 timing_info,
                 delay_calc,
-                first_iteration_priority,
-                is_flat);
+                first_iteration_priority);
             break;
         case e_heap_type::BUCKET_HEAP_APPROXIMATION:
             return try_timing_driven_route_tmpl<ConnectionRouter<Bucket>>(
@@ -238,8 +233,7 @@ bool try_timing_driven_route(const t_router_opts& router_opts,
                 netlist_pin_lookup,
                 timing_info,
                 delay_calc,
-                first_iteration_priority,
-                is_flat);
+                first_iteration_priority);
         default:
             VPR_FATAL_ERROR(VPR_ERROR_ROUTE, "Unknown heap type %d", router_opts.router_heap);
     }
@@ -253,8 +247,7 @@ bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
                                   const ClusteredPinAtomPinsLookup& netlist_pin_lookup,
                                   std::shared_ptr<SetupHoldTimingInfo> timing_info,
                                   std::shared_ptr<RoutingDelayCalculator> delay_calc,
-                                  ScreenUpdatePriority first_iteration_priority,
-                                  bool is_flat) {
+                                  ScreenUpdatePriority first_iteration_priority) {
     /* Timing-driven routing algorithm.  The timing graph (includes slack)   *
      * must have already been allocated, and net_delay must have been allocated. *
      * Returns true if the routing succeeds, false otherwise.                    */
@@ -309,8 +302,7 @@ bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
         router_opts.lookahead_type,
         router_opts.write_router_lookahead,
         router_opts.read_router_lookahead,
-        segment_inf,
-        is_flat);
+        segment_inf);
 
     /*
      * Routing parameters
@@ -330,7 +322,7 @@ bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
      */
     bool routing_is_successful = false;
     WirelengthInfo wirelength_info;
-    OveruseInfo overuse_info(device_ctx.rr_graph.num_nodes());
+    OveruseInfo overuse_info(device_ctx.rr_nodes.size());
     tatum::TimingPathInfo critical_path;
     int itry; //Routing iteration number
     int itry_conflicted_mode = 0;
@@ -347,12 +339,10 @@ bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
     ConnectionRouter router(
         device_ctx.grid,
         *router_lookahead,
-        device_ctx.rr_graph.rr_nodes(),
-        &device_ctx.rr_graph,
+        device_ctx.rr_nodes,
         device_ctx.rr_rc_data,
-        device_ctx.rr_graph.rr_switch(),
-        route_ctx.rr_node_route_inf,
-        is_flat);
+        device_ctx.rr_switch_inf,
+        route_ctx.rr_node_route_inf);
 
     // Make sure template type ConnectionRouter is a ConnectionRouterInterface.
     static_assert(std::is_base_of<ConnectionRouterInterface, ConnectionRouter>::value, "ConnectionRouter must implement the ConnectionRouterInterface");
@@ -461,8 +451,7 @@ bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
                                                            budgeting_inf,
                                                            was_rerouted,
                                                            worst_negative_slack,
-                                                           routing_predictor,
-                                                           is_flat);
+                                                           routing_predictor);
 
             if (!is_routable) {
                 return (false); //Impossible to route
@@ -807,7 +796,7 @@ bool try_timing_driven_route_tmpl(const t_router_opts& router_opts,
         ++num_routing_failed;
 
 #ifdef VTR_ENABLE_DEBUG_LOGGING
-        if (f_router_debug) print_invalid_routing_info(is_flat);
+        if (f_router_debug) print_invalid_routing_info();
 #endif
     }
 
@@ -837,8 +826,7 @@ bool try_timing_driven_route_net(ConnectionRouter& router,
                                  route_budgets& budgeting_inf,
                                  bool& was_rerouted,
                                  float worst_negative_slack,
-                                 const RoutingPredictor& routing_predictor,
-                                 bool is_flat) {
+                                 const RoutingPredictor& routing_predictor) {
     auto& cluster_ctx = g_vpr_ctx.clustering();
     auto& route_ctx = g_vpr_ctx.mutable_routing();
 
@@ -877,8 +865,7 @@ bool try_timing_driven_route_net(ConnectionRouter& router,
                                             pin_timing_invalidator,
                                             budgeting_inf,
                                             worst_negative_slack,
-                                            routing_predictor,
-                                            is_flat);
+                                            routing_predictor);
 
         profiling::net_fanout_end(cluster_ctx.clb_nlist.net_sinks(net_id).size());
 
@@ -905,14 +892,9 @@ void alloc_timing_driven_route_structs(float** pin_criticality_ptr,
 
     int max_sinks = std::max(get_max_pins_per_net() - 1, 0);
 
-    *pin_criticality_ptr = new float[max_sinks + 1]; /* First sink is pin #1.*/
-    *sink_order_ptr = new int[max_sinks + 1];
-    *rt_node_of_sink_ptr = new t_rt_node*[max_sinks + 1];
-
-    /* Element 0 should be an invalid value so we are likely to crash if we accidentally use it. */
-    (*pin_criticality_ptr)[0] = -1;
-    (*sink_order_ptr)[0] = -1;
-    (*rt_node_of_sink_ptr)[0] = nullptr;
+    *pin_criticality_ptr = new float[max_sinks] - 1; /* First sink is pin #1. */
+    *sink_order_ptr = new int[max_sinks] - 1;
+    *rt_node_of_sink_ptr = new t_rt_node*[max_sinks] - 1;
 
     alloc_route_tree_timing_structs();
 }
@@ -925,11 +907,11 @@ void free_timing_driven_route_structs(float* pin_criticality, int* sink_order, t
     /* Frees all the structures needed only by the timing-driven router.        */
 
     // coverity[offset_free : Intentional]
-    delete[](pin_criticality);
+    delete[](pin_criticality + 1); /* Starts at index 1. */
     // coverity[offset_free : Intentional]
-    delete[](sink_order);
+    delete[](sink_order + 1);
     // coverity[offset_free : Intentional]
-    delete[](rt_node_of_sink);
+    delete[](rt_node_of_sink + 1);
 
     free_route_tree_timing_structs();
 }
@@ -1002,15 +984,13 @@ bool timing_driven_route_net(ConnectionRouter& router,
                              ClusteredPinTimingInvalidator* pin_timing_invalidator,
                              route_budgets& budgeting_inf,
                              float worst_neg_slack,
-                             const RoutingPredictor& routing_predictor,
-                             bool is_flat) {
+                             const RoutingPredictor& routing_predictor) {
     /* Returns true as long as found some way to hook up this net, even if that *
      * way resulted in overuse of resources (congestion).  If there is no way   *
      * to route this net, even ignoring congestion, it returns false.  In this  *
      * case the rr_graph is disconnected and you can give up.                   */
     auto& cluster_ctx = g_vpr_ctx.clustering();
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
     unsigned int num_sinks = cluster_ctx.clb_nlist.net_sinks(net_id).size();
@@ -1109,8 +1089,7 @@ bool timing_driven_route_net(ConnectionRouter& router,
                 router_opts.high_fanout_threshold,
                 rt_root,
                 spatial_route_tree_lookup,
-                router_stats,
-                is_flat)) {
+                router_stats)) {
             return false;
         }
     }
@@ -1152,8 +1131,7 @@ bool timing_driven_route_net(ConnectionRouter& router,
                                       spatial_route_tree_lookup,
                                       router_stats,
                                       budgeting_inf,
-                                      routing_predictor,
-                                      is_flat))
+                                      routing_predictor))
             return false;
 
         profiling::conn_finish(route_ctx.net_rr_terminals[net_id][0],
@@ -1180,11 +1158,12 @@ bool timing_driven_route_net(ConnectionRouter& router,
     if (!cluster_ctx.clb_nlist.net_is_ignored(net_id)) {
         for (unsigned ipin = 1; ipin < cluster_ctx.clb_nlist.net_pins(net_id).size(); ++ipin) {
             if (net_delay[ipin] == 0) { // should be SOURCE->OPIN->IPIN->SINK
-                VTR_ASSERT(rr_graph.node_type(RRNodeId(rt_node_of_sink[ipin]->parent_node->parent_node->inode)) == OPIN);
+                VTR_ASSERT(device_ctx.rr_nodes[rt_node_of_sink[ipin]->parent_node->parent_node->inode].type() == OPIN);
             }
         }
     }
-    VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[rt_root->inode].occ() <= rr_graph.node_capacity(RRNodeId(rt_root->inode)), "SOURCE should never be congested");
+
+    VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[rt_root->inode].occ() <= device_ctx.rr_nodes[rt_root->inode].capacity(), "SOURCE should never be congested");
 
     // route tree is not kept persistent since building it from the traceback the next iteration takes almost 0 time
     VTR_LOGV_DEBUG(f_router_debug, "Routed Net %zu (%zu sinks)\n", size_t(net_id), num_sinks);
@@ -1203,16 +1182,14 @@ static bool timing_driven_pre_route_to_clock_root(
     int high_fanout_threshold,
     t_rt_node* rt_root,
     SpatialRouteTreeLookup& spatial_rt_lookup,
-    RouterStats& router_stats,
-    bool is_flat) {
-    const auto& device_ctx = g_vpr_ctx.device();
+    RouterStats& router_stats) {
     auto& route_ctx = g_vpr_ctx.mutable_routing();
     auto& cluster_ctx = g_vpr_ctx.clustering();
     auto& m_route_ctx = g_vpr_ctx.mutable_routing();
 
     bool high_fanout = is_high_fanout(cluster_ctx.clb_nlist.net_sinks(net_id).size(), high_fanout_threshold);
 
-    VTR_LOGV_DEBUG(f_router_debug, "Net %zu pre-route to (%s)\n", size_t(net_id), describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, sink_node, is_flat).c_str());
+    VTR_LOGV_DEBUG(f_router_debug, "Net %zu pre-route to (%s)\n", size_t(net_id), describe_rr_node(sink_node).c_str());
 
     profiling::sink_criticality_start();
 
@@ -1236,7 +1213,7 @@ static bool timing_driven_pre_route_to_clock_root(
         ClusterBlockId src_block = cluster_ctx.clb_nlist.net_driver_block(net_id);
         VTR_LOG("Failed to route connection from '%s' to '%s' for net '%s' (#%zu)\n",
                 cluster_ctx.clb_nlist.block_name(src_block).c_str(),
-                describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, sink_node, is_flat).c_str(),
+                describe_rr_node(sink_node).c_str(),
                 cluster_ctx.clb_nlist.net_name(net_id).c_str(),
                 size_t(net_id));
         if (f_router_debug) {
@@ -1303,18 +1280,16 @@ static bool timing_driven_route_sink(
     SpatialRouteTreeLookup& spatial_rt_lookup,
     RouterStats& router_stats,
     route_budgets& budgeting_inf,
-    const RoutingPredictor& routing_predictor,
-    bool is_flat) {
+    const RoutingPredictor& routing_predictor) {
     /* Build a path from the existing route tree rooted at rt_root to the target_node
      * add this branch to the existing route tree and update pathfinder costs and rr_node_route_inf to reflect this */
-    const auto& device_ctx = g_vpr_ctx.device();
     auto& route_ctx = g_vpr_ctx.mutable_routing();
     auto& cluster_ctx = g_vpr_ctx.clustering();
 
     profiling::sink_criticality_start();
 
     int sink_node = route_ctx.net_rr_terminals[net_id][target_pin];
-    VTR_LOGV_DEBUG(f_router_debug, "Net %zu Target %d (%s)\n", size_t(net_id), itarget, describe_rr_node(device_ctx.rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, sink_node, is_flat).c_str());
+    VTR_LOGV_DEBUG(f_router_debug, "Net %zu Target %d (%s)\n", size_t(net_id), itarget, describe_rr_node(sink_node).c_str());
 
     VTR_ASSERT_DEBUG(verify_traceback_route_tree_equivalent(route_ctx.trace[net_id].head, rt_root));
 
@@ -1538,14 +1513,13 @@ void disable_expansion_and_remove_sink_from_route_tree_nodes(t_rt_node* rt_node)
      * leading to the sink as unexpandable.
      */
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     t_rt_node* child_node;
     t_linked_rt_edge* linked_rt_edge;
     linked_rt_edge = rt_node->u.child_list;
 
     while (linked_rt_edge != nullptr) {
         child_node = linked_rt_edge->child;
-        if (rr_graph.node_type(RRNodeId(child_node->inode)) == SINK) {
+        if (device_ctx.rr_nodes[child_node->inode].type() == SINK) {
             VTR_LOGV_DEBUG(f_router_debug,
                            "Removing sink %d from route tree\n", child_node->inode);
             rt_node->u.child_list = nullptr;
@@ -1574,10 +1548,10 @@ void update_rr_base_costs(int fanout) {
     factor = sqrt(fanout);
 
     for (index = CHANX_COST_INDEX_START; index < device_ctx.rr_indexed_data.size(); index++) {
-        if (device_ctx.rr_indexed_data[RRIndexedDataId(index)].T_quadratic > 0.) { /* pass transistor */
-            device_ctx.rr_indexed_data[RRIndexedDataId(index)].base_cost = device_ctx.rr_indexed_data[RRIndexedDataId(index)].saved_base_cost * factor;
+        if (device_ctx.rr_indexed_data[index].T_quadratic > 0.) { /* pass transistor */
+            device_ctx.rr_indexed_data[index].base_cost = device_ctx.rr_indexed_data[index].saved_base_cost * factor;
         } else {
-            device_ctx.rr_indexed_data[RRIndexedDataId(index)].base_cost = device_ctx.rr_indexed_data[RRIndexedDataId(index)].saved_base_cost;
+            device_ctx.rr_indexed_data[index].base_cost = device_ctx.rr_indexed_data[index].saved_base_cost;
         }
     }
 }
@@ -1622,7 +1596,6 @@ static bool timing_driven_check_net_delays(ClbNetPinsMatrix<float>& net_delay) {
 static bool should_route_net(ClusterNetId net_id, CBRR& connections_inf, bool if_force_reroute) {
     auto& route_ctx = g_vpr_ctx.routing();
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
 
     t_trace* tptr = route_ctx.trace[net_id].head;
 
@@ -1634,7 +1607,7 @@ static bool should_route_net(ClusterNetId net_id, CBRR& connections_inf, bool if
     for (;;) {
         int inode = tptr->index;
         int occ = route_ctx.rr_node_route_inf[inode].occ();
-        int capacity = rr_graph.node_capacity(RRNodeId(inode));
+        int capacity = device_ctx.rr_nodes[inode].capacity();
 
         if (occ > capacity) {
             return true; /* overuse detected */
@@ -1688,14 +1661,14 @@ static bool check_hold(const t_router_opts& router_opts, float worst_neg_slack) 
 
 static size_t calculate_wirelength_available() {
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
 
     size_t available_wirelength = 0;
-    // But really what's happening is that this for loop iterates over every node and determines the available wirelength
-    for (const RRNodeId& rr_id : device_ctx.rr_graph.nodes()) {
-        const t_rr_type channel_type = rr_graph.node_type(rr_id);
-        if (channel_type == CHANX || channel_type == CHANY) {
-            available_wirelength += rr_graph.node_capacity(rr_id) * rr_graph.node_length(rr_id);
+    for (size_t i = 0; i < device_ctx.rr_nodes.size(); ++i) {
+        if (device_ctx.rr_nodes[i].type() == CHANX || device_ctx.rr_nodes[i].type() == CHANY) {
+            size_t length_x = device_ctx.rr_nodes[i].xhigh() - device_ctx.rr_nodes[i].xlow();
+            size_t length_y = device_ctx.rr_nodes[i].yhigh() - device_ctx.rr_nodes[i].ylow();
+
+            available_wirelength += device_ctx.rr_nodes[i].capacity() * (length_x + length_y + 1);
         }
     }
     return available_wirelength;
@@ -1958,7 +1931,6 @@ static size_t dynamic_update_bounding_boxes(const std::vector<ClusterNetId>& upd
 //Returns the bounding box of a net's used routing resources
 static t_bb calc_current_bb(const t_trace* head) {
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     auto& grid = device_ctx.grid;
 
     t_bb bb;
@@ -1968,15 +1940,15 @@ static t_bb calc_current_bb(const t_trace* head) {
     bb.ymax = 0;
 
     for (const t_trace* elem = head; elem != nullptr; elem = elem->next) {
-        const t_rr_node& node = device_ctx.rr_graph.rr_nodes()[elem->index];
+        const t_rr_node& node = device_ctx.rr_nodes[elem->index];
         //The router interprets RR nodes which cross the boundary as being
         //'within' of the BB. Only those which are *strictly* out side the
         //box are excluded, hence we use the nodes xhigh/yhigh for xmin/xmax,
         //and xlow/ylow for xmax/ymax calculations
-        bb.xmin = std::min<int>(bb.xmin, rr_graph.node_xhigh(node.id()));
-        bb.ymin = std::min<int>(bb.ymin, rr_graph.node_yhigh(node.id()));
-        bb.xmax = std::max<int>(bb.xmax, rr_graph.node_xlow(node.id()));
-        bb.ymax = std::max<int>(bb.ymax, rr_graph.node_ylow(node.id()));
+        bb.xmin = std::min<int>(bb.xmin, node.xhigh());
+        bb.ymin = std::min<int>(bb.ymin, node.yhigh());
+        bb.xmax = std::max<int>(bb.xmax, node.xlow());
+        bb.ymax = std::max<int>(bb.ymax, node.ylow());
     }
 
     VTR_ASSERT(bb.xmin <= bb.xmax);

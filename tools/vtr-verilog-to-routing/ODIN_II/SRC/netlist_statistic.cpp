@@ -12,6 +12,7 @@
 #include "odin_util.h"
 #include "vtr_memory.h"
 
+#define UNUSED_NODE_TYPE -1
 static void init(metric_t* m);
 static void print_stats(metric_t* m);
 static void copy(metric_t* dest, metric_t* src);
@@ -43,6 +44,25 @@ void init_stat(netlist_t* netlist) {
         /* we init to -2 to skip unused elements */
         netlist->num_of_type[i] = UNUSED_NODE_TYPE;
     }
+
+    if (hard_multipliers) {
+        netlist->num_of_type[MULTIPLY] = 0;
+    }
+
+    if (single_port_rams || dual_port_rams) {
+        netlist->num_of_type[MEMORY] = 0;
+    }
+
+    if (hard_adders) {
+        netlist->num_of_type[ADD] = 0;
+        netlist->num_of_type[MINUS] = 0;
+    }
+
+    netlist->num_of_type[INPUT_NODE] = 0;
+    netlist->num_of_type[OUTPUT_NODE] = 0;
+    netlist->num_of_type[CLOCK_NODE] = 0;
+    netlist->num_of_type[FF_NODE] = 0;
+    netlist->num_of_type[GENERIC] = 0;
 
     init(&netlist->output_node_stat);
     netlist->num_of_node = 0;
@@ -141,23 +161,6 @@ static void increment_type_count(operation_list op, netlist_t* netlist) {
 }
 static void count_node_type(operation_list op, nnode_t* node, netlist_t* netlist) {
     switch (op) {
-        case LOGICAL_OR:
-        case LOGICAL_AND:
-        case LOGICAL_NOR:
-        case LOGICAL_NAND:
-        case LOGICAL_XOR:
-        case LOGICAL_XNOR:
-        case LOGICAL_NOT: {
-            increment_type_count(op, netlist);
-            count_node_type(GENERIC, node, netlist);
-            break;
-        }
-        case MUX_2: //fallthrough
-        case SMUX_2: {
-            increment_type_count(MUX_2, netlist);
-            count_node_type(GENERIC, node, netlist);
-            break;
-        }
         case GENERIC:
             /**
              * generic a packed into luts
@@ -478,39 +481,14 @@ void compute_statistics(netlist_t* netlist, bool display) {
         get_upward_stat(&netlist->output_node_stat, netlist->top_output_nodes, netlist->num_top_output_nodes, netlist, travelsal_id + 1);
 
         if (display) {
-            std::string hdr = "";
             printf("\n\t==== Stats ====\n");
-            for (auto op = 0; op < operation_list_END; op += 1) {
-                switch (op) {
-                    // For top IO nodes generate detailed info since the design might have unconnected input nodes
-                    case INPUT_NODE: {
-                        auto unused_pi = netlist->num_top_input_nodes - netlist->num_of_type[op] - netlist->num_of_type[CLOCK_NODE];
-                        if (unused_pi > 0) {
-                            hdr = std::string("Number of unused <")
-                                  + operation_list_STR[op][ODIN_LONG_STRING]
-                                  + "> node: ";
-                            printf("%-42s%lld\n", hdr.c_str(), unused_pi);
-                        }
-                        [[fallthrough]];
-                    }
-                    case OUTPUT_NODE: {
-                        auto unused_po = netlist->num_top_output_nodes - netlist->num_of_type[op];
-                        if (unused_po > 0) {
-                            hdr = std::string("Number of unused <")
-                                  + operation_list_STR[op][ODIN_LONG_STRING]
-                                  + "> node: ";
-                            printf("%-42s%lld\n", hdr.c_str(), unused_po);
-                        }
-                        [[fallthrough]];
-                    }
-                    default: {
-                        if (netlist->num_of_type[op] > UNUSED_NODE_TYPE) {
-                            hdr = std::string("Number of <")
-                                  + operation_list_STR[op][ODIN_LONG_STRING]
-                                  + "> node: ";
-                            printf("%-42s%lld\n", hdr.c_str(), netlist->num_of_type[op]);
-                        }
-                    }
+            for (long long op = 0; op < operation_list_END; op += 1) {
+                if (netlist->num_of_type[op] > UNUSED_NODE_TYPE) {
+                    std::string hdr = std::string("Number of <")
+                                      + operation_list_STR[op][ODIN_LONG_STRING]
+                                      + "> node: ";
+
+                    printf("%-42s%lld\n", hdr.c_str(), netlist->num_of_type[op]);
                 }
             }
             printf("%-42s%lld\n", "Total estimated number of lut: ", netlist->num_logic_element);

@@ -21,9 +21,11 @@
 
 #pragma once
 
-#include "memory.h"
+#if defined(__GNUC__) && !KJ_HEADER_WARNINGS
+#pragma GCC system_header
+#endif
 
-KJ_BEGIN_HEADER
+#include "memory.h"
 
 namespace kj {
 
@@ -229,7 +231,7 @@ public:
   }
 
 private:
-  alignas(void*) char space[2 * sizeof(void*)];
+  void* space[2];
 
   class WrapperBase {
   public:
@@ -289,5 +291,3 @@ BoundMethod<T, Func, ConstFunc> boundMethod(T&& t, Func&& func, ConstFunc&& cons
 // contain a copy (by move) of it. The method is allowed to be overloaded.
 
 }  // namespace kj
-
-KJ_END_HEADER

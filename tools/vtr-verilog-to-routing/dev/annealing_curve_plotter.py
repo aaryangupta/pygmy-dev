@@ -186,10 +186,7 @@ def main():
             exit(-1)
 
         logs.append(
-            {
-                "xdata": data[args.xdata],
-                "ydata": data[args.ydata],
-            }
+            {"xdata": data[args.xdata], "ydata": data[args.ydata],}
         )
 
         # This assumes identical labels for all logs!

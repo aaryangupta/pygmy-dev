@@ -9,4 +9,5 @@ capnproto directory lives):
 ```elisp
 (add-to-list 'load-path "~/src/capnproto/highlighting/emacs")
 (require 'capnp-mode)
+(add-to-list 'auto-mode-alist '("\\.capnp\\'" . capnp-mode))
 ```

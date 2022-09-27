@@ -21,10 +21,12 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
+
 #include "dynamic.h"
 #include <kj/string-tree.h>
-
-CAPNP_BEGIN_HEADER
 
 namespace capnp {
 
@@ -40,5 +42,3 @@ kj::StringTree prettyPrint(DynamicList::Builder value);
 // any of the KJ debug macros, etc.).
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

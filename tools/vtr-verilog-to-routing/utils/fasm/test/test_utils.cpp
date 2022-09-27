@@ -1,5 +1,4 @@
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/matchers/catch_matchers_all.hpp"
+#include "catch.hpp"
 
 #include "fasm_utils.h"
 
@@ -7,7 +6,7 @@ namespace fasm {
 namespace {
 
 using Catch::Matchers::Equals;
-using Catch::Matchers::ContainsSubstring;
+using Catch::Matchers::Contains;
 
 TEST_CASE("parse_names", "[fasm]") {
     std::string name;

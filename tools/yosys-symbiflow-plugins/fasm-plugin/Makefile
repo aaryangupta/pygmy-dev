@@ -1,12 +1,22 @@
-# Copyright (C) 2020-2021  The SymbiFlow Authors.
-#
-# Use of this source code is governed by a ISC-style
-# license that can be found in the LICENSE file or at
-# https://opensource.org/licenses/ISC
-#
-# SPDX-License-Identifier:ISC
+CXX = $(shell yosys-config --cxx)
+CXXFLAGS = $(shell yosys-config --cxxflags)
+LDFLAGS = $(shell yosys-config --ldflags)
+LDLIBS = $(shell yosys-config --ldlibs)
+PLUGINS_DIR = $(shell yosys-config --datdir)/plugins
 
-NAME = fasm
-SOURCES = fasm.cc
-include ../Makefile_plugin.common
+OBJS = fasm.o
+
+fasm.so: $(OBJS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
+
+.PHONY: install
+install: fasm.so
+	mkdir -p $(PLUGINS_DIR)
+	cp $< $(PLUGINS_DIR)/$<
+
+test: install
+	$(MAKE) -C tests all
+
+clean:
+	rm -f *.d *.o fasm.so
 

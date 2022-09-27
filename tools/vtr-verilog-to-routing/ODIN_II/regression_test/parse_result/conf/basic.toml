@@ -27,12 +27,7 @@
     range = [ 1.0, 255.0 ]
 
 ["errors"]
-    regex = [ 
-    	# Odin Error
-    	"(?:.*/([^/]+):)?[\s]*error(\[[^:]*\]): (.*)", 
-    	# Yosys Error
-    	"(?:.*/([^/]+):)?[\s]*ERROR: (.*)" 
-    	]
+    regex = "(?:.*/([^/]+):)?[\s]*error(\[[^:]*\]): (.*)"
     default = []
 
 ["warnings"]

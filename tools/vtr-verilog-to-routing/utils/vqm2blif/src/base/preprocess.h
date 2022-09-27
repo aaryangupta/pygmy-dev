@@ -27,7 +27,7 @@ typedef struct s_split_inout_pin {
 
 
 struct cmp_str {
-    bool operator()(char const* a, char const* b) const {
+    bool operator()(char const* a, char const* b) {
         return strcmp(a, b) < 0;
     }
 };

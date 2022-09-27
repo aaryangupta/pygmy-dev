@@ -101,9 +101,7 @@
 
 
 #include <stdio.h>
-#ifndef __APPLE__
 #include <malloc.h>
-#endif
 
 
 /*****************************************************/

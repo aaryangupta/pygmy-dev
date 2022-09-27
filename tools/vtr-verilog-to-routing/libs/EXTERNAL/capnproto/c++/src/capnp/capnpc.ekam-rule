@@ -33,7 +33,6 @@ INPUT=$1
 case "$INPUT" in
     *capnp/c++.capnp | \
     *capnp/schema.capnp | \
-    *capnp/stream.capnp | \
     *capnp/rpc.capnp | \
     *capnp/rpc-twoparty.capnp | \
     *capnp/persistent.capnp | \

@@ -120,7 +120,7 @@ done_banner() {
     y | Y )
       doit git push origin $PUSH
       doit gce-ss copy-files capnproto-c++-$VERSION.tar.gz capnproto-c++-win32-$VERSION.zip \
-          alpha2:/var/www/capnproto.org
+          fe:/var/www/capnproto.org
 
       if [ "$FINAL" = yes ]; then
         echo "========================================================================="
@@ -177,7 +177,7 @@ case "${1-}:$BRANCH" in
     declare -a VERSION_ARR=(${RELEASE_VERSION//./ })
     NEXT_VERSION=${VERSION_ARR[0]}.$((VERSION_ARR[1] + 1))
 
-    update_version $HEAD_VERSION $NEXT_VERSION-dev "mainline"
+    update_version $HEAD_VERSION $NEXT_VERSION-dev "mainlaine"
 
     done_banner $RELEASE_VERSION-rc1 "master release-$RELEASE_VERSION" no
     ;;

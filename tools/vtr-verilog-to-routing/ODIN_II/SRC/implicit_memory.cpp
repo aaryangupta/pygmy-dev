@@ -97,47 +97,6 @@ char is_valid_implicit_memory_reference_ast(char* instance_name_prefix, ast_node
         return false;
 }
 
-bool is_signal_list_connected_to_memory(implicit_memory* memory, signal_list_t* signals, const char* port_name) {
-    oassert(port_name);
-
-    // is any port of the memory connected
-    if (memory->node->input_port_sizes) {
-        int i, j;
-        long pin_index = 0;
-        for (i = 0; i < memory->node->num_input_port_sizes; i++) {
-            int input_port_size = memory->node->input_port_sizes[i];
-            bool* signals_connectivity = (bool*)vtr::calloc(input_port_size, sizeof(bool));
-            memset(signals_connectivity, false, input_port_size * sizeof(bool));
-
-            for (j = 0; (input_port_size == signals->count) && j < signals->count; j++) {
-                npin_t* memory_input_pin = memory->node->input_pins[pin_index + j];
-
-                if (!strcmp(memory_input_pin->mapping, port_name)) {
-                    if (memory_input_pin->net->name && signals->pins[j]->net->name) {
-                        if (!strcmp(memory_input_pin->net->name, signals->pins[j]->net->name)) {
-                            signals_connectivity[j] = true;
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
-            bool connected = true;
-            for (j = 0; j < input_port_size; j++) {
-                connected &= signals_connectivity[j];
-            }
-
-            pin_index += input_port_size;
-            vtr::free(signals_connectivity);
-
-            if (connected)
-                return true;
-        }
-    }
-
-    return false;
-}
-
 /*
  * Creates an implicit memory block with the given depth and data width, and the given name and prefix.
  */
@@ -168,7 +127,7 @@ implicit_memory* create_implicit_memory_block(int data_width, long memory_depth,
     // Create a fake ast node.
     node->related_ast_node = create_node_w_type(RAM, node->loc);
     node->related_ast_node->children = (ast_node_t**)vtr::calloc(1, sizeof(ast_node_t*));
-    node->related_ast_node->identifier_node = create_tree_node_id(vtr::strdup(SINGLE_PORT_RAM_string), loc);
+    node->related_ast_node->identifier_node = create_tree_node_id(vtr::strdup(DUAL_PORT_RAM_string), loc);
 
     char* full_name = make_full_ref_name(instance_name_prefix, NULL, NULL, name, -1);
 
@@ -223,8 +182,8 @@ implicit_memory* lookup_implicit_memory_input(char* name) {
 void register_implicit_memory_input(char* name, implicit_memory* memory) {
     if (!lookup_implicit_memory_input(name))
         implicit_memory_inputs.insert({std::string(name), memory});
-    // else
-    // error_message(NETLIST, memory->node->loc, "Attempted to re-register implicit memory output %s.", name);
+    else
+        error_message(NETLIST, memory->node->loc, "Attempted to re-register implicit memory output %s.", name);
 }
 
 /*
@@ -253,7 +212,7 @@ void add_dummy_input_port_to_implicit_memory(implicit_memory* memory, int size, 
     signal_list_t* signals = init_signal_list();
     int i;
     for (i = 0; i < size; i++)
-        add_pin_to_signal_list(signals, get_zero_pin(syn_netlist));
+        add_pin_to_signal_list(signals, get_zero_pin(verilog_netlist));
 
     add_input_port_to_implicit_memory(memory, signals, port_name);
 

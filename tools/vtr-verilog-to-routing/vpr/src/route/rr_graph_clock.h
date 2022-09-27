@@ -8,7 +8,6 @@
 #include <set>
 #include <utility>
 
-#include "rr_graph_builder.h"
 #include "clock_fwd.h"
 
 #include "clock_network_builders.h"
@@ -30,12 +29,12 @@ class SwitchPoint {
     // if the switch point exists at a certian location.
     std::set<std::pair<int, int>> locations; // x,y
   public:
-    /** Accessors **/
+    /** Getters **/
     std::vector<int> get_rr_node_indices_at_location(int x, int y) const;
 
     std::set<std::pair<int, int>> get_switch_locations() const;
 
-    /** Mutators **/
+    /** Setters **/
     void insert_node_idx(int x, int y, int node_idx);
 };
 
@@ -47,7 +46,7 @@ class SwitchPoints {
     std::unordered_map<std::string, SwitchPoint> switch_point_name_to_switch_location;
 
   public:
-    /** Accessors **/
+    /** Getters **/
 
     /* Example: x,y = middle of the chip, switch_point_name == name of main drive
      * of global clock spine, returns the rr_nodes of all the clock spines that
@@ -58,7 +57,7 @@ class SwitchPoints {
 
     std::set<std::pair<int, int>> get_switch_locations(std::string switch_point_name) const;
 
-    /** Mutators **/
+    /** Setters **/
     void insert_switch_node_idx(std::string switch_point_name, int x, int y, int node_idx);
 };
 
@@ -79,11 +78,11 @@ class ClockRRGraphBuilder {
         const t_chan_width& chan_width,
         const DeviceGrid& grid,
         t_rr_graph_storage* rr_nodes,
-        RRGraphBuilder* rr_graph_builder)
+        t_rr_node_indices* rr_node_indices)
         : chan_width_(chan_width)
         , grid_(grid)
         , rr_nodes_(rr_nodes)
-        , rr_graph_builder_(rr_graph_builder)
+        , rr_node_indices_(rr_node_indices)
         , chanx_ptc_idx_(0)
         , chany_ptc_idx_(0) {
     }
@@ -113,26 +112,21 @@ class ClockRRGraphBuilder {
 
     static size_t estimate_additional_nodes(const DeviceGrid& grid);
 
-    /* AA: map the segment indices in all networks to corresponding indices in axis based segment vectors as defined in build_rr_graph
-     * Reffer to clock_network_builders.h: map_relative_seg_indices*/
-
-    static void map_relative_seg_indices(const t_unified_to_parallel_seg_index& indices_map);
-
     void add_edge(t_rr_edge_info_set* rr_edges_to_create,
-                  RRNodeId src_node,
-                  RRNodeId sink_node,
+                  int src_node,
+                  int sink_node,
                   int arch_switch_idx) const;
 
   public:
     /* Creates the routing resourse (rr) graph of the clock network and appends it to the
      * existing rr graph created in build_rr_graph for inter-block and intra-block routing. */
-    void create_and_append_clock_rr_graph(int num_segments_x,
+    void create_and_append_clock_rr_graph(int num_seg_types,
                                           t_rr_edge_info_set* rr_edges_to_create);
 
   private:
     /* loop over all of the clock networks and create their wires */
     void create_clock_networks_wires(const std::vector<std::unique_ptr<ClockNetwork>>& clock_networks,
-                                     int num_segments_x,
+                                     int num_segments,
                                      t_rr_edge_info_set* rr_edges_to_create);
 
     /* loop over all clock routing connections and create the switches and connections */
@@ -142,7 +136,7 @@ class ClockRRGraphBuilder {
     const t_chan_width& chan_width_;
     const DeviceGrid& grid_;
     t_rr_graph_storage* rr_nodes_;
-    RRGraphBuilder* rr_graph_builder_;
+    t_rr_node_indices* rr_node_indices_;
 
     int chanx_ptc_idx_;
     int chany_ptc_idx_;

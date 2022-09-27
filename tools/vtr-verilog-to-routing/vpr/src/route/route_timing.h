@@ -25,8 +25,7 @@ bool try_timing_driven_route(const t_router_opts& router_opts,
                              const ClusteredPinAtomPinsLookup& netlist_pin_lookup,
                              std::shared_ptr<SetupHoldTimingInfo> timing_info,
                              std::shared_ptr<RoutingDelayCalculator> delay_calc,
-                             ScreenUpdatePriority first_iteration_priority,
-                             bool is_flat);
+                             ScreenUpdatePriority first_iteration_priority);
 
 template<typename ConnectionRouter>
 bool try_timing_driven_route_net(ConnectionRouter& router,
@@ -45,8 +44,7 @@ bool try_timing_driven_route_net(ConnectionRouter& router,
                                  route_budgets& budgeting_inf,
                                  bool& was_rerouted,
                                  float worst_neg_slack,
-                                 const RoutingPredictor& routing_predictor,
-                                 bool is_flat);
+                                 const RoutingPredictor& routing_predictor);
 
 template<typename ConnectionRouter>
 bool timing_driven_route_net(ConnectionRouter& router,
@@ -64,8 +62,7 @@ bool timing_driven_route_net(ConnectionRouter& router,
                              ClusteredPinTimingInvalidator* pin_timing_invalidator,
                              route_budgets& budgeting_inf,
                              float worst_neg_slack,
-                             const RoutingPredictor& routing_predictor,
-                             bool is_flat);
+                             const RoutingPredictor& routing_predictor);
 
 void alloc_timing_driven_route_structs(float** pin_criticality_ptr,
                                        int** sink_order_ptr,

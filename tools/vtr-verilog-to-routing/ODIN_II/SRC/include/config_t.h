@@ -1,24 +1,17 @@
-#ifndef CONFIG_T_H
-#define CONFIG_T_H
-
 #include <vector>
 #include <string>
-#include "odin_types.h"
+
+#ifndef CONFIG_T_H
+#    define CONFIG_T_H
 
 /* This is the data structure that holds config file details */
 struct config_t {
     std::vector<std::string> list_of_file_names;
 
-    std::string debug_output_path; // path for where to output the debug outputs
-    std::string dsp_verilog;       // path for the output Verilog file including target DSPs' declaration
-    enum file_type_e input_file_type;
-    enum file_type_e output_file_type;
-    enum elaborator_e elaborator_type;
-    bool fflegalize;     // Legalize DFFs by making them rising edge
-    bool coarsen;        // Specify if the input BLIF is coarse-grain
-    bool show_yosys_log; // Print Yosys logs into the standard output stream
-    bool decode_names;   // Extracting hierarchical information from Yosys coarse-grained BLIF file for signal naming
+    std::string output_type; // string name of the type of output file
 
+    std::string debug_output_path; // path for where to output the debug outputs
+    bool is_verilog_input;
     bool output_ast_graphs;     // switch that outputs ast graphs per node for use with GRaphViz tools
     bool output_netlist_graphs; // switch that outputs netlist graphs per node for use with GraphViz tools
     bool print_parse_tokens;    // switch that controls whether or not each token is printed during parsing
@@ -54,7 +47,6 @@ struct config_t {
     int soft_logic_memory_width_threshold;
 
     std::string arch_file; // Name of the FPGA architecture file
-    std::string tcl_file;  // TCL file to be run by yosys
 };
 
 extern config_t configuration;

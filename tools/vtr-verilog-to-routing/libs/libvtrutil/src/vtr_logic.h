@@ -18,9 +18,6 @@ constexpr int TRUE = 1;
 
 namespace vtr {
 
-/**
- * @brief This class represents the different supported logic values
- */
 enum class LogicValue {
     FALSE = 0,
     TRUE = 1,

@@ -1,5 +1,4 @@
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/matchers/catch_matchers_all.hpp"
+#include "catch.hpp"
 
 #include "vpr_api.h"
 #include "vtr_util.h"
@@ -8,7 +7,6 @@
 #include "fasm_utils.h"
 #include "arch_util.h"
 #include "rr_graph_writer.h"
-#include "post_routing_pb_pin_fixup.h"
 #include <sstream>
 #include <fstream>
 #include <regex>
@@ -25,9 +23,9 @@ namespace {
 
 using Catch::Matchers::Equals;
 using Catch::Matchers::StartsWith;
-using Catch::Matchers::ContainsSubstring;
+using Catch::Matchers::Contains;
 
-class RegexMatcher : public Catch::Matchers::MatcherBase<std::string> {
+class RegexMatcher : public Catch::MatcherBase<std::string> {
 
     std::string m_RegexStr;
     std::regex  m_Regex;
@@ -170,72 +168,7 @@ TEST_CASE("match_lut_init", "[fasm]") {
     CHECK(match_lut_init("16'b0000000011111111", "16'b0000111100001111"));
 }
 
-/*
-The following function returns a string describing a block pin given an IPIN/
-OPIN rr node index. This is needed to correlate rr nodes with port names as
-defined in the architecture and used for checking if genfasm correctlty honors
-equivalent port pins rotation.
-
-The output pin description format is:
-"PIN_<xlow>_<ylow>_<sub_tile_type>_<sub_tile_port>_<port_pin_index>"
-
-Pin decriptions returned by this functions are injected as FASM features to the
-edges of a rr graph that are immediately connected with pins from "outside"
-(not to from/to a SOURCE or SINK). Then, after genfasm is run they are identified,
-and decoded to get all the pin information. This allows to get information
-which block pins are used from the "FASM perspective".
-*/
-static std::string get_pin_feature (size_t inode) {
-    auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
-
-    // Get tile physical tile and the pin number
-    int ilow = rr_graph.node_xlow(RRNodeId(inode));
-    int jlow = rr_graph.node_ylow(RRNodeId(inode));
-    auto physical_tile = device_ctx.grid[ilow][jlow].type;
-    int pin_num = rr_graph.node_pin_num(RRNodeId(inode));
-
-    // Get the sub tile (type, not instance) and index of its pin that matches
-    // the node index.
-    const t_sub_tile* sub_tile_type = nullptr;
-    int sub_tile_pin = -1;
-
-    for (auto& sub_tile : physical_tile->sub_tiles) {
-        auto max_inst_pins = sub_tile.num_phy_pins / sub_tile.capacity.total();
-        for (int pin = 0; pin < sub_tile.num_phy_pins; pin++) {
-            if (sub_tile.sub_tile_to_tile_pin_indices[pin] == pin_num) {
-                sub_tile_type = &sub_tile;
-                sub_tile_pin  = pin % max_inst_pins;
-                break;
-            }
-        }
-
-        if (sub_tile_type != nullptr) {
-            break;
-        }
-    }
-
-    REQUIRE(sub_tile_type != nullptr);
-    REQUIRE(sub_tile_pin  != -1);
-
-    // Find the sub tile port and pin index for the sub-tile type pin index.
-    for (const auto& port : sub_tile_type->ports) {
-        int pin_lo = port.absolute_first_pin_index;
-        int pin_hi = pin_lo + port.num_pins;
-
-        if (sub_tile_pin >= pin_lo && sub_tile_pin < pin_hi) {
-            int port_pin = sub_tile_pin - pin_lo;
-            return vtr::string_fmt("PIN_%d_%d_%s_%s_%d", ilow, jlow, sub_tile_type->name, port.name, port_pin);
-        }
-    }
-
-    // Pin not found
-    REQUIRE(false);
-    return std::string();
-}
-
 TEST_CASE("fasm_integration_test", "[fasm]") {
-    bool is_flat = false;
     {
         t_vpr_setup vpr_setup;
         t_arch arch;
@@ -254,49 +187,18 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
         REQUIRE(flow_succeeded == true);
 
         auto &device_ctx = g_vpr_ctx.mutable_device();
-        const auto& rr_graph = device_ctx.rr_graph;
-        bool echo_enabled = getEchoEnabled() && isEchoFileEnabled(E_ECHO_RR_GRAPH_INDEXED_DATA);
-        const char* echo_file_name = getEchoFileName(E_ECHO_RR_GRAPH_INDEXED_DATA);
-        for (const RRNodeId& inode : rr_graph.nodes()){
-            for(t_edge_size iedge = 0; iedge < rr_graph.num_edges(inode); ++iedge) {
-                auto sink_inode = size_t(rr_graph.edge_sink_node(inode, iedge));
-                auto switch_id = rr_graph.edge_switch(inode, iedge);
+        for(size_t inode = 0; inode < device_ctx.rr_nodes.size(); ++inode) {
+            for(t_edge_size iedge = 0; iedge < device_ctx.rr_nodes[inode].num_edges(); ++iedge) {
+                auto sink_inode = device_ctx.rr_nodes[inode].edge_sink_node(iedge);
+                auto switch_id = device_ctx.rr_nodes[inode].edge_switch(iedge);
                 auto value = vtr::string_fmt("%d_%d_%zu",
-                            (size_t)inode, sink_inode, switch_id);
-
-                // Add additional features to edges that go to CLB.I[11:0] pins
-                // to correlate them with features of CLB input mux later.
-                auto sink_type = rr_graph.node_type(RRNodeId(sink_inode));
-                if (sink_type == IPIN) {            
-                    auto pin_feature = get_pin_feature(sink_inode);
-                    value = value + "\n" + pin_feature;
-                }
-
-                vpr::add_rr_edge_metadata(device_ctx.rr_graph_builder.rr_edge_metadata(),
-                                          (size_t)inode,
-                                          sink_inode, 
-                                          switch_id,
-                                          vtr::string_view("fasm_features"), 
-                                          vtr::string_view(value.data(), value.size()),
-                                          device_ctx.arch);
+                            inode, sink_inode, switch_id);
+                vpr::add_rr_edge_metadata(inode, sink_inode, switch_id,
+                        vtr::string_view("fasm_features"), vtr::string_view(value.data(), value.size()));
             }
         }
 
-        write_rr_graph(&device_ctx.rr_graph_builder,
-                       &device_ctx.rr_graph,
-                       device_ctx.physical_tile_types,
-                       &device_ctx.rr_indexed_data,
-                       &device_ctx.rr_rc_data,
-                       device_ctx.grid,
-                       device_ctx.arch_switch_inf,
-                       device_ctx.arch,
-                       &device_ctx.chan_width,
-                       device_ctx.num_arch_switches,
-                       kRrGraphFile,
-                       device_ctx.virtual_clock_network_root_idx,
-                       echo_enabled,
-                       echo_file_name,
-                       is_flat);
+        write_rr_graph(kRrGraphFile);
         vpr_free_all(arch, vpr_setup);
     }
 
@@ -324,18 +226,6 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
 
     bool flow_succeeded = vpr_flow(vpr_setup, arch);
     REQUIRE(flow_succeeded == true);
-
-    /* Sync netlist to the actual routing (necessary if there are block
-       ports with equivalent pins) */
-    if (flow_succeeded) {
-        sync_netlists_to_routing(g_vpr_ctx.device(),
-                                 g_vpr_ctx.mutable_atom(),
-                                 g_vpr_ctx.mutable_clustering(),
-                                 g_vpr_ctx.placement(),
-                                 g_vpr_ctx.routing(),
-                                 vpr_setup.PackerOpts.pack_verbosity > 2,
-                                 is_flat);
-    }
 
     std::stringstream fasm_string;
     fasm::FasmWriterVisitor visitor(&arch.strings, fasm_string);
@@ -372,6 +262,7 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
         if (line.find(".names") != std::string::npos) {
             REQUIRE(lut_def.length() > 0);
             lut_defs.push_back(lut_def);
+            //fprintf(stderr, "'%s'\n", lut_def.c_str());
             lut_def = "";
             continue;
         }
@@ -381,8 +272,6 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
     fasm_string.clear();
     fasm_string.seekg(0);
 
-    std::set<std::string> xbar_features;
-    std::set<std::tuple<int, int, std::string, std::string, int>> routed_pins; // x, y, tile, port, pin
     std::set<std::tuple<int, int, short>> routing_edges;
     std::set<std::tuple<int, int>> occupied_locs;
     bool found_lut5 = false;
@@ -424,21 +313,7 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
             }
         }
 
-        // A feature representing block pin used by the router
-        if(line.find("PIN_") != std::string::npos) {
-            auto parts = vtr::split(line, "_");
-            REQUIRE(parts.size() == 6);
-
-            auto x = vtr::atoi(parts[1]);
-            auto y = vtr::atoi(parts[2]);
-            auto tile = parts[3];
-            auto port = parts[4];
-            auto pin = vtr::atoi(parts[5]);
-
-            routed_pins.insert(std::make_tuple(x, y, tile, port, pin));
-        }
-
-        else if(line.find("FLE") != std::string::npos) {
+        if(line.find("FLE") != std::string::npos) {
 
             // Check correlation with top-level prefixes with X coordinates
             // as defined in the architecture
@@ -460,11 +335,6 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
             // Check presence of LOC prefix substitutions
             CHECK_THAT(line, MatchesRegex(".*X\\d+Y\\d+.*"));
 
-            // Add to xbar features
-            if (line.find("_XBAR_") != std::string::npos) {
-                xbar_features.insert(line);
-            }
-
             // Extract loc from tag
             std::smatch locMatch;
             REQUIRE(std::regex_match(line, locMatch, std::regex(".*X(\\d+)Y(\\d+).*")));
@@ -480,14 +350,14 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
 
             // Check correct substitution of "" and "_SING"
             if (loc_y == 1) {
-                CHECK_THAT(line,  ContainsSubstring("_SING"));
+                CHECK_THAT(line,  Contains("_SING"));
             }
             else {
-                CHECK_THAT(line, !ContainsSubstring("_SING"));
+                CHECK_THAT(line, !Contains("_SING"));
             }
 
             // Check that all tags were substituted
-            CHECK_THAT(line, !ContainsSubstring("{") && !ContainsSubstring("}"));
+            CHECK_THAT(line, !Contains("{") && !Contains("}"));
 
             // Check LUT
             auto pos = line.find("LUT[");
@@ -600,27 +470,6 @@ TEST_CASE("fasm_integration_test", "[fasm]") {
 
             head = next;
         }
-    }
-
-    // Verify CLB crossbar mux features against routed pin features.
-    for (const auto& xbar_feature : xbar_features) {
-
-        // Decompose the xbar feature - extract only the necessary information
-        // such as block location and pin index.
-        std::smatch m;
-        auto res = std::regex_match(xbar_feature, m, std::regex(
-            ".*_X([0-9]+)Y([0-9]+)\\.IN([0-9])_XBAR_I([0-9]+)$"));
-        REQUIRE(res == true);
-
-        int x = vtr::atoi(m.str(1));
-        int y = vtr::atoi(m.str(2));
-        std::string mux = m.str(3);
-        int pin = vtr::atoi(m.str(4));
-
-        // Check if there is a corresponding routed pin feature
-        auto pin_feature = std::make_tuple(x, y, std::string("clb"), std::string("I"), pin);
-        size_t count = routed_pins.count(pin_feature);
-        REQUIRE(count == 1);
     }
 
     // Verify that all LUTs defined in the BLIF file ended up in fasm

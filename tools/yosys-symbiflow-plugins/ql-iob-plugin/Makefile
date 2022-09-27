@@ -1,11 +1,24 @@
-# Copyright (C) 2020-2021  The SymbiFlow Authors.
-#
-# Use of this source code is governed by a ISC-style
-# license that can be found in the LICENSE file or at
-# https://opensource.org/licenses/ISC
-#
-# SPDX-License-Identifier:ISC
+CXX = $(shell yosys-config --cxx)
+CXXFLAGS = $(shell yosys-config --cxxflags)
+LDFLAGS = $(shell yosys-config --ldflags)
+LDLIBS = $(shell yosys-config --ldlibs)
+PLUGINS_DIR = $(shell yosys-config --datdir)/plugins
 
 NAME = ql-iob
-SOURCES = ql-iob.cc pcf_parser.cc pinmap_parser.cc
-include ../Makefile_plugin.common
+OBJS = $(NAME).o pcf_parser.cc pinmap_parser.cc
+
+$(NAME).so: $(OBJS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
+
+.PHONY: install test
+
+install: test
+	mkdir -p $(PLUGINS_DIR)
+	cp $(NAME).so $(PLUGINS_DIR)/$(NAME).so
+
+test: $(NAME).so
+	$(MAKE) -C tests all
+
+clean:
+	rm -f *.d *.o *.so
+	$(MAKE) -C tests clean

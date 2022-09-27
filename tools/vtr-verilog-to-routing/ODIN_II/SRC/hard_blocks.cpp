@@ -59,8 +59,7 @@ void cache_hard_block_names() {
     hard_blocks = Arch.models;
     hard_block_names = sc_new_string_cache();
     while (hard_blocks) {
-        int sc_spot = sc_add_string(hard_block_names, hard_blocks->name);
-        hard_block_names->data[sc_spot] = (void*)hard_blocks;
+        sc_add_string(hard_block_names, hard_blocks->name);
         hard_blocks = hard_blocks->next;
     }
 }
@@ -146,11 +145,11 @@ void define_hard_block(nnode_t* node, FILE* out) {
     for (i = 0; i < node->num_input_pins; i++) {
         /* Check that the input pin is driven */
         if (node->input_pins[i]->net->num_driver_pins == 0
-            && node->input_pins[i]->net != syn_netlist->zero_net
-            && node->input_pins[i]->net != syn_netlist->one_net
-            && node->input_pins[i]->net != syn_netlist->pad_net) {
+            && node->input_pins[i]->net != verilog_netlist->zero_net
+            && node->input_pins[i]->net != verilog_netlist->one_net
+            && node->input_pins[i]->net != verilog_netlist->pad_net) {
             warning_message(NETLIST, node->loc, "Signal %s is not driven. padding with ground\n", node->input_pins[i]->name);
-            add_fanout_pin_to_net(syn_netlist->zero_net, node->input_pins[i]);
+            add_fanout_pin_to_net(verilog_netlist->zero_net, node->input_pins[i]);
         } else if (node->input_pins[i]->net->num_driver_pins > 1) {
             error_message(NETLIST, node->loc, "Multiple (%d) driver pins not supported in hard block definition\n", node->input_pins[i]->net->num_driver_pins);
         }
@@ -273,7 +272,7 @@ void instantiate_hard_block(nnode_t* node, short mark, netlist_t* /*netlist*/) {
     /* Give names to the output pins */
     for (i = 0; i < node->num_output_pins; i++) {
         if (node->output_pins[i]->name == NULL)
-            node->output_pins[i]->name = make_full_ref_name(node->name, NULL, NULL, node->output_pins[i]->mapping, (configuration.elaborator_type == elaborator_e::_YOSYS) ? i : -1);
+            node->output_pins[i]->name = make_full_ref_name(node->name, NULL, NULL, node->output_pins[i]->mapping, -1);
 
         index++;
         if (node->output_port_sizes[port] == index) {

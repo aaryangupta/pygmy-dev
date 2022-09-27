@@ -1,8 +1,5 @@
-#LeakSanitizer suppression file for VPR
+#LeakSanitizer supporession file for VPR
 
 #Leak from graphics (ezgl/cairo) related to
 # text processing
 leak:libfontconfig.so
-#Leaks from TBB library, which
-#allows VPR to run with parallelism
-leak:libtbb.so

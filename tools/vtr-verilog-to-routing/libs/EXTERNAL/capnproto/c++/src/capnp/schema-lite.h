@@ -21,10 +21,12 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
+
 #include <capnp/schema.capnp.h>
 #include "message.h"
-
-CAPNP_BEGIN_HEADER
 
 namespace capnp {
 
@@ -41,5 +43,3 @@ inline schema::Node::Reader schemaProto() {
 }
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

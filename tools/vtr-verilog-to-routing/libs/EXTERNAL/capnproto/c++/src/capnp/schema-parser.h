@@ -21,11 +21,13 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
+
 #include "schema-loader.h"
 #include <kj/string.h>
 #include <kj/filesystem.h>
-
-CAPNP_BEGIN_HEADER
 
 namespace capnp {
 
@@ -44,7 +46,7 @@ public:
   ParsedSchema parseFromDirectory(
       const kj::ReadableDirectory& baseDir, kj::Path path,
       kj::ArrayPtr<const kj::ReadableDirectory* const> importPath) const;
-  // Parse a file from the KJ filesystem API.  Throws an exception if the file doesn't exist.
+  // Parse a file from the KJ filesystem API.  Throws an exception if the file dosen't exist.
   //
   // `baseDir` and `path` are used together to resolve relative imports. `path` is the source
   // file's path within `baseDir`. Relative imports will be interpreted relative to `path` and
@@ -58,7 +60,7 @@ public:
   // the `importPath` array must remain valid. `path` will be copied; it need not remain valid.
   //
   // This method is a shortcut, equivalent to:
-  //     parser.parseFile(SchemaFile::newDiskFile(baseDir, path, importPath))`;
+  //     parser.parseFromDirectory(SchemaFile::newDiskFile(baseDir, path, importPath))`;
   //
   // This method throws an exception if any errors are encountered in the file or in anything the
   // file depends on.  Note that merely importing another file does not count as a dependency on
@@ -71,7 +73,7 @@ public:
   //
   //     auto fs = kj::newDiskFilesystem();
   //     SchemaParser parser;
-  //     auto schema = parser.parseFromDirectory(fs->getCurrent(),
+  //     auto schema = parser->parseFromDirectory(fs->getCurrent(),
   //         kj::Path::parse("foo/bar.capnp"), nullptr);
   //
   // Hint: To use in-memory data rather than real disk, you can use kj::newInMemoryDirectory(),
@@ -81,7 +83,7 @@ public:
   //     auto path = kj::Path::parse("foo/bar.capnp");
   //     dir->openFile(path, kj::WriteMode::CREATE | kj::WriteMode::CREATE_PARENT)
   //        ->writeAll("struct Foo {}");
-  //     auto schema = parser.parseFromDirectory(*dir, path, nullptr);
+  //     auto schema = parser->parseFromDirectory(*dir, path, nullptr);
   //
   // Hint: You can create an in-memory directory but then populate it with real files from disk,
   //   in order to control what is visible while also avoiding reading files yourself or making
@@ -93,7 +95,7 @@ public:
   //     auto realPath = kj::Path::parse("path/to/some/file.capnp");
   //     dir->transfer(fakePath, kj::WriteMode::CREATE | kj::WriteMode::CREATE_PARENT,
   //                   fs->getCurrent(), realPath, kj::TransferMode::LINK);
-  //     auto schema = parser.parseFromDirectory(*dir, fakePath, nullptr);
+  //     auto schema = parser->parseFromDirectory(*dir, fakePath, nullptr);
   //
   //   In this example, note that any imports in the file will fail, since the in-memory directory
   //   you created contains no files except the specific one you linked in.
@@ -158,9 +160,6 @@ class ParsedSchema: public Schema {
   // ParsedSchema is an extension of Schema which also has the ability to look up nested nodes
   // by name.  See `SchemaParser`.
 
-  class ParsedSchemaList;
-  friend class ParsedSchemaList;
-
 public:
   inline ParsedSchema(): parser(nullptr) {}
 
@@ -172,9 +171,6 @@ public:
   // Gets the nested node with the given name, or throws an exception if there is no such nested
   // declaration.
 
-  ParsedSchemaList getAllNested() const;
-  // Get all the nested nodes
-
   schema::Node::SourceInfo::Reader getSourceInfo() const;
   // Get the source info for this schema.
 
@@ -183,27 +179,6 @@ private:
 
   const SchemaParser* parser;
   friend class SchemaParser;
-};
-
-class ParsedSchema::ParsedSchemaList {
-public:
-  ParsedSchemaList() = default;  // empty list
-
-  inline uint size() const { return list.size(); }
-  ParsedSchema operator[](uint index) const;
-
-  typedef _::IndexingIterator<const ParsedSchemaList, ParsedSchema> Iterator;
-  inline Iterator begin() const { return Iterator(this, 0); }
-  inline Iterator end() const { return Iterator(this, size()); }
-
-private:
-  ParsedSchema parent;
-  List<schema::Node::NestedNode>::Reader list;
-
-  inline ParsedSchemaList(ParsedSchema parent, List<schema::Node::NestedNode>::Reader list)
-      : parent(parent), list(list) {}
-
-  friend class ParsedSchema;
 };
 
 // =======================================================================================
@@ -268,5 +243,3 @@ private:
 };
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

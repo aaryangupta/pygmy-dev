@@ -5,7 +5,7 @@
 #include <random>
 #include <algorithm>
 
-#include "catch2/catch_test_macros.hpp"
+#include "catch.hpp"
 
 #include "edge_groups.h"
 

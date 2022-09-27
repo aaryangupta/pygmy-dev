@@ -13,18 +13,7 @@ odin_path = root_path / "ODIN_II"
 odin_exe_path = odin_path / "odin_II"
 odin_cfg_path = vtr_flow_path / "misc" / "basic_odin_config_split.xml"
 odin_verify_path = odin_path / "verify_odin.sh"
-odin_benchmark_path = odin_path / "regression_test" / "benchmark"
 odin_output_on_error_path = odin_path / "regression_test" / ".library" / "output_on_error.conf"
-
-# YOSYS paths
-yosys_path = root_path / "Yosys"
-yosys_exe_path = yosys_path / "bin" / "yosys"
-yosys_lib_path = vtr_flow_path / "misc" / "yosyslib"
-yosys_script_path = yosys_lib_path / "synthesis.tcl"
-
-# ARCHFPGA paths
-archfpga_path = root_path / "ArchFPGA"
-write_arch_bb_exe_path = root_path / "build/libs/libarchfpga/write_arch_bb"
 
 # ABC paths
 abc_path = root_path / "abc"
@@ -60,4 +49,3 @@ restore_multiclock_latch_old_script_path = scripts_path / "restore_multiclock_la
 restore_multiclock_latch_script_path = scripts_path / "restore_multiclock_latch.pl"
 valgrind_supp = vpr_path / "valgrind.supp"
 lsan_supp = vpr_path / "lsan.supp"
-asan_supp = vpr_path / "asan.supp"

@@ -2,7 +2,6 @@
 #define _BINARY_HEAP_H
 
 #include "heap_type.h"
-#include <vector>
 
 class BinaryHeap : public HeapInterface {
   public:
@@ -35,9 +34,9 @@ class BinaryHeap : public HeapInterface {
     void prune_heap();
 
     HeapStorage storage_;
-    std::vector<t_heap*> heap_; /* Indexed from [1..heap_size] */
-    size_t heap_size_;          /* Number of slots in the heap array */
-    size_t heap_tail_;          /* Index of first unused slot in the heap array */
+    t_heap** heap_;    /* Indexed from [1..heap_size] */
+    size_t heap_size_; /* Number of slots in the heap array */
+    size_t heap_tail_; /* Index of first unused slot in the heap array */
 
     size_t max_index_;
     size_t prune_limit_;

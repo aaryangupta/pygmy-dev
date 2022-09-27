@@ -7,12 +7,9 @@ module LUT4(
    input I3
 );
     parameter [15:0] INIT = 16'h0;
-	parameter EQN = "(I0)";
+    parameter EQN = "(I0)";
     
-    wire [7:0] s3 = I3 ? INIT[15:8] : INIT[7:0];
-	wire [3:0] s2 = I2 ?       s3[ 7:4] :       s3[3:0];
-	wire [1:0] s1 = I1 ?       s2[ 3:2] :       s2[1:0];
-	assign O = I0 ? s1[1] : s1[0];
+    assign O = INIT[{I3, I2, I1, I0}];
 endmodule
 
 (* abc9_lut=1, lib_whitebox *)
@@ -27,157 +24,31 @@ module LUT5(
     parameter [31:0] INIT = 32'h0;
     parameter EQN = "(I0)";
 
-    wire [15: 0] s4 = I4 ? INIT[31:16] : INIT[15: 0];
-    wire [ 7: 0] s3 = I3 ?   s4[15: 8] :   s4[ 7: 0];
-    wire [ 3: 0] s2 = I2 ?   s3[ 7: 4] :   s3[ 3: 0];
-    wire [ 1: 0] s1 = I1 ?   s2[ 3: 2] :   s2[ 1: 0];
-    assign O = I0 ? s1[1] : s1[0];
-endmodule
-
-module dff(
-    output reg Q,
-    input D,
-    (* clkbuf_sink *)
-    input CLK
-);
-    parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-    always @(posedge CLK)
-        Q <= D;
-endmodule
-
-module dffc(
-    output reg Q,
-    input D,
-    (* clkbuf_sink *)
-    input CLK,
-    (* clkbuf_sink *)
-    input CLR
-);
-    parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-
-    always @(posedge CLK or posedge CLR)
-        if (CLR)
-            Q <= 1'b0;
-        else
-            Q <= D;
-endmodule
-
-module dffp(
-    output reg Q,
-    input D,
-    (* clkbuf_sink *)
-    input CLK,
-    (* clkbuf_sink *)
-    input PRE
-);
-    parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-
-    always @(posedge CLK or posedge PRE)
-        if (PRE)
-            Q <= 1'b1;
-        else
-            Q <= D;
+    assign O = INIT[{I4, I3, I2, I1, I0}];
 endmodule
 
 (* abc9_flop, lib_whitebox *)
-module dffpc(
-    output reg Q,
-	input D,
-    (* clkbuf_sink *)
-	input CLK,
-    (* clkbuf_sink *)
-	input CLR,
-    (* clkbuf_sink *)
-	input PRE
-);
-    parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-
-    always @(posedge CLK or posedge CLR or posedge PRE)
-        if (CLR)
-            Q <= 1'b0;
-        else if (PRE)
-            Q <= 1'b1;
-        else 
-            Q <= D;
-endmodule
-
-module dffe(
-    output reg Q,
+module ff(
+    output reg CQZ,
     input D,
     (* clkbuf_sink *)
-    input CLK,
-    input EN
+    input QCK,
+    input QEN,
+    (* clkbuf_sink *)
+    input QRT,
+    (* clkbuf_sink *)
+    input QST
 );
     parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-    always @(posedge CLK)
-        if (EN)
-            Q <= D;
-endmodule
+    initial CQZ = INIT;
 
-module dffepc(
-    output reg Q,
-    input D,
-    (* clkbuf_sink *)
-    input CLK,
-    input EN,
-    (* clkbuf_sink *)
-    input CLR,
-    (* clkbuf_sink *)
-    input PRE
-);
-    parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-
-    always @(posedge CLK or posedge CLR or posedge PRE)
-        if (CLR)
-            Q <= 1'b0;
-        else if (PRE)
-            Q <= 1'b1;
-        else if (EN)
-            Q <= D;
-endmodule
-
-module dffsec(
-    output reg Q,
-	input D,
-    (* clkbuf_sink *)
-	input CLK,
-	input EN,
-    (* clkbuf_sink *)
-	input CLR
-);
-	parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-
-    always @(posedge CLK or posedge CLR)
-        if (CLR)
-            Q <= 1'b0;
-        else if (EN)
-            Q <= D;
-endmodule
-
-module dffsep(
-    output reg Q,
-	input D,
-    (* clkbuf_sink *)
-	input CLK,
-	input EN,
-    (* clkbuf_sink *)
-    input P
-);
-    parameter [0:0] INIT = 1'b0;
-    initial Q = INIT;
-    
-	always @(posedge CLK or posedge P)
-        if (P)
-            Q <= 1'b1;
-        else if (EN)
-            Q <= D;
+    always @(posedge QCK or posedge QRT or posedge QST)
+        if (QRT)
+            CQZ <= 1'b0;
+        else if (QST)
+            CQZ <= 1'b1;
+        else if (QEN)
+            CQZ <= D;
 endmodule
 
 module full_adder(
@@ -242,11 +113,11 @@ endmodule /* out buff */
 
 module d_buff ( 
     (* iopad_external_pin *)
-	output OUT_DBUF,
-	input IN_DBUF
+	output Q
 );
 
-	assign Q = IN_DBUF ? 1'b1 : 1'b0;
+	parameter DSEL = 1'b0;
+	assign Q = DSEL ? 1'b1 : 1'b0;
 	
 endmodule /* d buff */
 
@@ -276,7 +147,9 @@ module RAM (RADDR,RRLSEL,REN,RMODE,
 
    input [10:0] RADDR,WADDR;
    input [1:0] 	RRLSEL,RMODE,WMODE;
-   input 	REN,WEN,FFLUSH,RCLK,WCLK;
+   input 	REN,WEN,FFLUSH;
+   (* clkbuf_sink *)
+   input RCLK, WCLK;
    input [31:0] WDATA;
    input [1:0] 	SBOG, ENDIAN, UPAF, UPAE;
    output [31:0] RDATA;

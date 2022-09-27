@@ -1,9 +1,3 @@
-/**
- * @file save_graphics.h
- * 
- * Manages saving of graphics in different file formats
- */
-
 #ifndef SAVE_GRAPHICS_H
 #define SAVE_GRAPHICS_H
 

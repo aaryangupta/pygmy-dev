@@ -31,33 +31,38 @@ module _80_quicklogic_alu (A, B, CI, BI, X, Y, CO);
     // force_downto *)
     //wire [Y_WIDTH-1:0] C = {CO, CI};
 
-    FULL_ADDER first_inst(
-            .A(AA[0]),
-            .B(BB[0]),
-			.CI(CI),
-			.CO(CO[0]),
-			.S(Y[0]));
+    full_adder first_inst(
+        .A(AA[0]),
+        .B(BB[0]),
+        .CI(CI),
+        .CO(CO[0]),
+        .S(Y[0]));
 
     genvar i;
-    generate for (i = 1; i < Y_WIDTH-1; i = i + 1) begin: slice
-        FULL_ADDER inst_i (
-			.A(AA[i]),
-			.B(BB[i]),
-			.CI(CO[i-1]),
-			.CO(CO[i]),
-			.S(Y[i])
-		);
+    generate for (i = 1; i < Y_WIDTH-1; i = i + 1) 
+        begin: slice
+            full_adder inst_i (
+                .A(AA[i]),
+                .B(BB[i]),
+                .CI(CO[i-1]),
+                .CO(CO[i]),
+                .S(Y[i])
+            );
 
-    end: slice	  
+        end: slice	  
     endgenerate
     
-    FULL_ADDER inst_last (
-        .A(AA[Y_WIDTH-1]),
-        .B(BB[Y_WIDTH-1]),
-        .CI(CO[Y_WIDTH-2]),
-        .CO(CO[Y_WIDTH-1]),
-        .S(Y[Y_WIDTH-1])
-    );
+    generate if (Y_WIDTH >= 2) 
+        begin
+            full_adder inst_last (
+            .A(AA[Y_WIDTH-1]),
+            .B(BB[Y_WIDTH-1]),
+            .CI(CO[Y_WIDTH-2]),
+            .CO(CO[Y_WIDTH-1]),
+            .S(Y[Y_WIDTH-1])
+        );
+    end 
+    endgenerate
 
     /* End implementation */
     assign X = AA ^ BB;

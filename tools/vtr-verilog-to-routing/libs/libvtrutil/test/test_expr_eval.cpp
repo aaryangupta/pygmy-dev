@@ -1,6 +1,6 @@
 #include <limits>
 
-#include "catch2/catch_test_macros.hpp"
+#include "catch.hpp"
 
 #include "vtr_expr_eval.h"
 

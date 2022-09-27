@@ -1,9 +1,7 @@
 #define HASHSIZE 5000001
-#include <iostream>
-#include <string>
 
 struct t_hash {
-    std::string name;
+    char* name;
     int index;
     int count;
     t_hash* next;

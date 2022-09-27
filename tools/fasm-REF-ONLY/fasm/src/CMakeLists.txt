@@ -1,10 +1,18 @@
-# Copyright (C) 2017-2020  The SymbiFlow Authors.
+# Copyright 2017-2022 F4PGA Authors
 #
-# Use of this source code is governed by a ISC-style
-# license that can be found in the LICENSE file or at
-# https://opensource.org/licenses/ISC
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# SPDX-License-Identifier: ISC
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 # minimum required CMAKE version
 CMAKE_MINIMUM_REQUIRED(VERSION 3.7 FATAL_ERROR)
@@ -13,7 +21,15 @@ project(parse_fasm)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/antlr4/runtime/Cpp/cmake)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(ANTLR4_TAG e4c1a74)
+if (MSVC_VERSION GREATER_EQUAL "1900")
+    include(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG("/std:c++latest" _cpp_latest_flag_supported)
+    if (_cpp_latest_flag_supported)
+        add_compile_options("/std:c++latest")
+    endif()
+endif()
 
 if(ANTLR_RUNTIME_TYPE STREQUAL "static")
   # Required if linking to static library
@@ -41,7 +57,7 @@ include_directories(${ANTLR4_INCLUDE_DIRS})
 
 # set variable pointing to the antlr tool that supports C++
 # this is not required if the jar file can be found under PATH environment
-set(ANTLR_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/antlr4_lib/antlr-4.9-complete.jar)
+set(ANTLR_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/antlr4_lib/antlr-4.9.3-complete.jar)
 
 # add macros to generate ANTLR Cpp code from grammar
 find_package(ANTLR REQUIRED)
@@ -81,7 +97,7 @@ add_library(parse_fasm SHARED ParseFasm.cpp
   ${ANTLR_FasmLexer_CXX_OUTPUTS}
   ${ANTLR_FasmParser_CXX_OUTPUTS})
 target_link_libraries(parse_fasm ${ANTLR4_RUNTIME})
-target_compile_options(parse_fasm PRIVATE -Wno-attributes) # Disable warning from antlr4-runtime
+#target_compile_options(parse_fasm PRIVATE -Wno-attributes) # Disable warning from antlr4-runtime
 
 add_executable(parse_fasm_tests
   ParseFasmTests.cpp
@@ -89,7 +105,7 @@ add_executable(parse_fasm_tests
   ${ANTLR_FasmParser_CXX_OUTPUTS})
 target_link_libraries(parse_fasm_tests ${ANTLR4_RUNTIME})
 target_link_libraries(parse_fasm_tests gtest_main)
-target_compile_options(parse_fasm_tests PRIVATE -Wno-attributes) # Disable warning from antlr4-runtime
+#target_compile_options(parse_fasm_tests PRIVATE -Wno-attributes) # Disable warning from antlr4-runtime
 
 # Standalone executable
 add_executable(parse_fasm_run EXCLUDE_FROM_ALL
@@ -98,7 +114,7 @@ add_executable(parse_fasm_run EXCLUDE_FROM_ALL
   ${ANTLR_FasmParser_CXX_OUTPUTS})
 target_link_libraries(parse_fasm_run ${ANTLR4_RUNTIME})
 set_target_properties(parse_fasm_run PROPERTIES OUTPUT_NAME parse_fasm)
-target_compile_options(parse_fasm_run PRIVATE -Wno-attributes) # Disable warning from antlr4-runtime
+#target_compile_options(parse_fasm_run PRIVATE -Wno-attributes) # Disable warning from antlr4-runtime
 
 # Unit tests
 include(CTest)

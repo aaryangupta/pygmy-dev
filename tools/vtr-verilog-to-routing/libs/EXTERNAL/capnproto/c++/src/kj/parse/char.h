@@ -24,11 +24,13 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !KJ_HEADER_WARNINGS
+#pragma GCC system_header
+#endif
+
 #include "common.h"
 #include "../string.h"
 #include <inttypes.h>
-
-KJ_BEGIN_HEADER
 
 namespace kj {
 namespace parse {
@@ -156,7 +158,7 @@ constexpr inline CharGroup_ charRange(char first, char last) {
   return CharGroup_().orRange(first, last);
 }
 
-#if _MSC_VER && !defined(__clang__)
+#if _MSC_VER
 #define anyOfChars(chars) CharGroup_().orAny(chars)
 // TODO(msvc): MSVC ICEs on the proper definition of `anyOfChars()`, which in turn prevents us from
 //   building the compiler or schema parser. We don't know why this happens, but Harris found that
@@ -362,5 +364,3 @@ constexpr auto doubleQuotedHexBinary = sequence(
 
 }  // namespace parse
 }  // namespace kj
-
-KJ_END_HEADER

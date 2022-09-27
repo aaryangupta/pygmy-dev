@@ -185,7 +185,7 @@ private:
           Sleep(10);
           goto retry;
         }
-        KJ_FALLTHROUGH;
+        // fallthrough
       default:
         KJ_FAIL_WIN32("RemoveDirectory", error) { break; }
     }
@@ -276,11 +276,6 @@ KJ_TEST("DiskFile") {
 
   KJ_EXPECT(file->readAllText() == "");
 
-  // mmaping empty file should work
-  KJ_EXPECT(file->mmap(0, 0).size() == 0);
-  KJ_EXPECT(file->mmapPrivate(0, 0).size() == 0);
-  KJ_EXPECT(file->mmapWritable(0, 0)->get().size() == 0);
-
   file->writeAll("foo");
   KJ_EXPECT(file->readAllText() == "foo");
 
@@ -298,14 +293,6 @@ KJ_TEST("DiskFile") {
 
   file->truncate(18);
   KJ_EXPECT(file->readAllText() == kj::StringPtr("foobaz\0\0\0\0\0\0\0\0\0\0\0\0", 18));
-
-  // empty mappings work, even if useless
-  KJ_EXPECT(file->mmap(0, 0).size() == 0);
-  KJ_EXPECT(file->mmapPrivate(0, 0).size() == 0);
-  KJ_EXPECT(file->mmapWritable(0, 0)->get().size() == 0);
-  KJ_EXPECT(file->mmap(2, 0).size() == 0);
-  KJ_EXPECT(file->mmapPrivate(2, 0).size() == 0);
-  KJ_EXPECT(file->mmapWritable(2, 0)->get().size() == 0);
 
   {
     auto mapping = file->mmap(0, 18);
@@ -842,15 +829,7 @@ KJ_TEST("DiskDirectory replace file with directory") {
   KJ_EXPECT(dir->openFile(Path({"foo", "bar"}))->readAllText() == "bazqux");
 }
 
-#if !defined(HOLES_NOT_SUPPORTED) && (CAPNP_DEBUG_TYPES || CAPNP_EXPENSIVE_TESTS)
-// Not all filesystems support sparse files, and if they do, they don't necessarily support
-// copying them in a way that preserves holes. We don't want the capnp test suite to fail just
-// because it was run on the wrong filesystem. We could design the test to check first if the
-// filesystem supports holes, but the code to do that would be almost the same as the code being
-// tested... Instead, we've marked this test so it only runs when building this library using
-// defines that only the Cap'n Proto maintainers use. So, we run the test ourselves but we don't
-// make other people run it.
-
+#ifndef HOLES_NOT_SUPPORTED
 KJ_TEST("DiskFile holes") {
   if (isWine()) {
     // WINE doesn't support sparse files.

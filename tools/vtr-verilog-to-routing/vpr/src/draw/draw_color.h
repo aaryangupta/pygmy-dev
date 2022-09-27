@@ -1,10 +1,3 @@
-/**
- * @file draw_color.h
- * 
- * Contains declarations for different colors used to draw blocks,
- * as well as a global vector of colors shuffled to prevent similar
- * colors from being close together
- */
 #ifndef DRAW_COLOR_H
 #define DRAW_COLOR_H
 

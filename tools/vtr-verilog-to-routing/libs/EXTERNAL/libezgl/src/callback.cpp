@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 University of Toronto
+ * Copyright 2019 University of Toronto
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,39 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Authors: Mario Badr, Sameh Attia, Tanner Young-Schultz and Vaughn Betz
+ * Authors: Mario Badr, Sameh Attia and Tanner Young-Schultz
  */
 
 #include "ezgl/callback.hpp"
 
 namespace ezgl {
 
-/**
- * Provides file wide variables to support mouse panning. We store some 
- * state about mouse panning so we can determine when click & drag mouse
- * panning (handled by ezgl) is happening vs. simple mouse clicks (sent to
- * user mouse click callback).
- */
-struct mouse_pan {
-  /**
-   * Tracks whether the mouse button used for panning is currently pressed
-   */
-  bool panning_mouse_button_pressed = false;
-  /**
-   * Holds the timestamp of the last panning event
-   */
-  int last_panning_event_time = 0;
-  /**
-   * The old x and y positions of the mouse pointer, in the previous pan 
-   * event.
-   */
-  double prev_x = 0;
-  double prev_y = 0;
-
-  /* Has any panning happened since the mouse button was held down?
-   */
-  bool has_panned = false; 
-} g_mouse_pan;
+// File wide static variables to track whether the middle mouse
+// button is currently pressed AND the old x and y positions of the mouse pointer
+bool middle_mouse_button_pressed = false;
+int last_panning_event_time = 0;
+double prev_x = 0, prev_y = 0;
 
 gboolean press_key(GtkWidget *, GdkEventKey *event, gpointer data)
 {
@@ -57,13 +36,7 @@ gboolean press_key(GtkWidget *, GdkEventKey *event, gpointer data)
     application->key_press_callback(application, event, gdk_keyval_name(event->keyval));
   }
 
-  // Returning FALSE to indicate this event should be propagated on to other
-  // gtk widgets. This is important since we're grabbing keyboard events
-  // for the whole main window. It can have unexpected effects though, such
-  // as Enter/Space being treated as press any highlighted button.
-  // return TRUE (event consumed) if you want to avoid that, and don't have
-  // any widgets that need keyboard events.
-  return FALSE;
+  return FALSE; // propagate the event
 }
 
 gboolean press_mouse(GtkWidget *, GdkEventButton *event, gpointer data)
@@ -72,18 +45,15 @@ gboolean press_mouse(GtkWidget *, GdkEventButton *event, gpointer data)
 
   if(event->type == GDK_BUTTON_PRESS) {
 
-    // Check for mouse press to support dragging. 
-    if(event->button == PANNING_MOUSE_BUTTON) {
-      g_mouse_pan.panning_mouse_button_pressed = true;
-      g_mouse_pan.prev_x = event->x;
-      g_mouse_pan.prev_y = event->y;
-      g_mouse_pan.has_panned = false;  /* Haven't shifted the view yet */
+    // Check for Middle mouse press to support dragging
+    if(event->button == 2) {
+      middle_mouse_button_pressed = true;
+      prev_x = event->x;
+      prev_y = event->y;
     }
+
     // Call the user-defined mouse press callback if defined
-    // The user-defined callback is called for mouse buttons other than
-    // the PANNING_MOUSE_BUTTON button. If the user pressed the PANNING_MOUSE_BUTTON button,
-    // the callback will be called at mouse release only if no panning occurs
-    else if(application->mouse_press_callback != nullptr) {
+    if(application->mouse_press_callback != nullptr) {
       ezgl::point2d const widget_coordinates(event->x, event->y);
 
       std::string main_canvas_id = application->get_main_canvas_id();
@@ -97,28 +67,12 @@ gboolean press_mouse(GtkWidget *, GdkEventButton *event, gpointer data)
   return TRUE; // consume the event
 }
 
-gboolean release_mouse(GtkWidget *, GdkEventButton *event, gpointer data)
+gboolean release_mouse(GtkWidget *, GdkEventButton *event, gpointer )
 {
-  auto application = static_cast<ezgl::application *>(data);
-
   if(event->type == GDK_BUTTON_RELEASE) {
-    // Check for mouse release to support dragging
-    if(event->button == PANNING_MOUSE_BUTTON) {
-      g_mouse_pan.panning_mouse_button_pressed = false;
-
-      // Call the user-defined mouse press callback for the PANNING_MOUSE_BUTTON button only if no panning occurs. 
-      // This lets the user use one mouse button for both click-and-drag 
-      // panning and simple clicking.
-      if (!g_mouse_pan.has_panned && application->mouse_press_callback != nullptr) {
-        ezgl::point2d const widget_coordinates(event->x, event->y);
-
-        std::string main_canvas_id = application->get_main_canvas_id();
-        ezgl::canvas *canvas = application->get_canvas(main_canvas_id);
-
-        ezgl::point2d const world = canvas->get_camera().widget_to_world(widget_coordinates);
-        application->mouse_press_callback(application, event, world.x, world.y);
-      }
-      g_mouse_pan.has_panned = false;  /* Done pan; reset for next time */
+    // Check for Middle mouse release to support dragging
+    if(event->button == 2) {
+      middle_mouse_button_pressed = false;
     }
   }
 
@@ -131,19 +85,13 @@ gboolean move_mouse(GtkWidget *, GdkEventButton *event, gpointer data)
 
   if(event->type == GDK_MOTION_NOTIFY) {
 
-    // Check if the mouse button is pressed to support dragging
-    if(g_mouse_pan.panning_mouse_button_pressed) {
-      // Code below drops a panning event if we served anothe one 
-      // less than 100 ms. I believe it was intended to avoid having panning
-      // fall behind and queue up many events if redraws were slow. However,
-      // it is not necessary on the UG machines (debian) in person, or over 
-      // VNC or on a VM and it has the bad effect of limiting refresh to 10 Hz.
-      // Commenting it out for now and will delete if there 
-      // are no reported issues. - VB
-      // if(gtk_get_current_event_time() - g_mouse_pan.last_panning_event_time < 100)
-       // return true;
+    // Check if the middle mouse is pressed to support dragging
+    if(middle_mouse_button_pressed) {
+      // drop this panning event if we have just served another one
+      if(gtk_get_current_event_time() - last_panning_event_time < 100)
+        return true;
 
-      g_mouse_pan.last_panning_event_time = gtk_get_current_event_time();
+      last_panning_event_time = gtk_get_current_event_time();
 
       GdkEventMotion *motion_event = (GdkEventMotion *)event;
 
@@ -151,17 +99,16 @@ gboolean move_mouse(GtkWidget *, GdkEventButton *event, gpointer data)
       auto canvas = application->get_canvas(main_canvas_id);
 
       point2d curr_trans = canvas->get_camera().widget_to_world({motion_event->x, motion_event->y});
-      point2d prev_trans = canvas->get_camera().widget_to_world({g_mouse_pan.prev_x, g_mouse_pan.prev_y});
+      point2d prev_trans = canvas->get_camera().widget_to_world({prev_x, prev_y});
 
       double dx = curr_trans.x - prev_trans.x;
       double dy = curr_trans.y - prev_trans.y;
 
-      g_mouse_pan.prev_x = motion_event->x;
-      g_mouse_pan.prev_y = motion_event->y;
+      prev_x = motion_event->x;
+      prev_y = motion_event->y;
 
       // Flip the delta x to avoid inverted dragging
       translate(canvas, -dx, -dy);
-      g_mouse_pan.has_panned = true;
     }
     // Else call the user-defined mouse move callback if defined
     else if(application->mouse_move_callback != nullptr) {

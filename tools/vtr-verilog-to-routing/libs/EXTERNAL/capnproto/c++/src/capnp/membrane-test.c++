@@ -277,16 +277,15 @@ KJ_TEST("apply membrane using copyOutOfMembrane() on AnyPointer") {
 }
 
 struct TestRpcEnv {
-  kj::EventLoop loop;
-  kj::WaitScope waitScope;
+  kj::AsyncIoContext io;
   kj::TwoWayPipe pipe;
   TwoPartyClient client;
   TwoPartyClient server;
   test::TestMembrane::Client membraned;
 
   TestRpcEnv(kj::Maybe<kj::Promise<void>> revokePromise = nullptr)
-      : waitScope(loop),
-        pipe(kj::newTwoWayPipe()),
+      : io(kj::setupAsyncIo()),
+        pipe(io.provider->newTwoWayPipe()),
         client(*pipe.ends[0]),
         server(*pipe.ends[1],
                membrane(kj::heap<TestMembraneImpl>(),
@@ -297,7 +296,7 @@ struct TestRpcEnv {
   void testThing(kj::Function<Thing::Client()> makeThing,
                  kj::StringPtr localPassThrough, kj::StringPtr localIntercept,
                  kj::StringPtr remotePassThrough, kj::StringPtr remoteIntercept) {
-    testThingImpl(waitScope, membraned, kj::mv(makeThing),
+    testThingImpl(io.waitScope, membraned, kj::mv(makeThing),
                   localPassThrough, localIntercept, remotePassThrough, remoteIntercept);
   }
 };
@@ -305,7 +304,7 @@ struct TestRpcEnv {
 KJ_TEST("call remote object inside membrane") {
   TestRpcEnv env;
   env.testThing([&]() {
-    return env.membraned.makeThingRequest().send().wait(env.waitScope).getThing();
+    return env.membraned.makeThingRequest().send().wait(env.io.waitScope).getThing();
   }, "inside", "inbound", "inside", "inside");
 }
 
@@ -337,7 +336,7 @@ KJ_TEST("call remote capability that has passed into and back out of membrane") 
   env.testThing([&]() {
     auto req = env.membraned.loopbackRequest();
     req.setThing(kj::heap<ThingImpl>("outside"));
-    return req.send().wait(env.waitScope).getThing();
+    return req.send().wait(env.io.waitScope).getThing();
   }, "outside", "outside", "outside", "outbound");
 }
 
@@ -355,11 +354,11 @@ KJ_TEST("revoke membrane") {
 
   TestRpcEnv env(kj::mv(paf.promise));
 
-  auto thing = env.membraned.makeThingRequest().send().wait(env.waitScope).getThing();
+  auto thing = env.membraned.makeThingRequest().send().wait(env.io.waitScope).getThing();
 
   auto callPromise = env.membraned.waitForeverRequest().send();
 
-  KJ_EXPECT(!callPromise.poll(env.waitScope));
+  KJ_EXPECT(!callPromise.poll(env.io.waitScope));
 
   paf.fulfiller->reject(KJ_EXCEPTION(DISCONNECTED, "foobar"));
 
@@ -369,14 +368,14 @@ KJ_TEST("revoke membrane") {
   //   involves fork()ing the process to run the code so if it has side effects on file descriptors
   //   then we'll get in a bad state...
 
-  KJ_ASSERT(callPromise.poll(env.waitScope));
-  KJ_EXPECT_THROW_RECOVERABLE_MESSAGE("foobar", callPromise.ignoreResult().wait(env.waitScope));
+  KJ_ASSERT(callPromise.poll(env.io.waitScope));
+  KJ_EXPECT_THROW_RECOVERABLE_MESSAGE("foobar", callPromise.ignoreResult().wait(env.io.waitScope));
 
   KJ_EXPECT_THROW_RECOVERABLE_MESSAGE("foobar",
-      env.membraned.makeThingRequest().send().ignoreResult().wait(env.waitScope));
+      env.membraned.makeThingRequest().send().ignoreResult().wait(env.io.waitScope));
 
   KJ_EXPECT_THROW_RECOVERABLE_MESSAGE("foobar",
-      thing.passThroughRequest().send().ignoreResult().wait(env.waitScope));
+      thing.passThroughRequest().send().ignoreResult().wait(env.io.waitScope));
 }
 
 }  // namespace

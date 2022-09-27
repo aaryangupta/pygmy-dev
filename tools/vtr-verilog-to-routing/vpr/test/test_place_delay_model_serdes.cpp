@@ -1,4 +1,4 @@
-#include "catch2/catch_test_macros.hpp"
+#include "catch.hpp"
 
 #include "place_delay_model.h"
 
@@ -19,12 +19,12 @@ TEST_CASE("round_trip_delta_delay_model", "[vpr]") {
             delays[x][y] = (x + 1) * (y + 1);
         }
     }
-    DeltaDelayModel model(std::move(delays), false);
+    DeltaDelayModel model(std::move(delays));
     const auto& delays1 = model.delays();
 
     model.write(kDeltaDelayBin);
 
-    DeltaDelayModel model2(false);
+    DeltaDelayModel model2;
     model2.read(kDeltaDelayBin);
 
     const auto& delays2 = model2.delays();
@@ -53,15 +53,15 @@ TEST_CASE("round_trip_override_delay_model", "[vpr]") {
             delays[x][y] = (x + 1) * (y + 1);
         }
     }
-    OverrideDelayModel model(false);
-    auto base_model = std::make_unique<DeltaDelayModel>(delays, false);
+    OverrideDelayModel model;
+    auto base_model = std::make_unique<DeltaDelayModel>(delays);
     model.set_base_delay_model(std::move(base_model));
     model.set_delay_override(1, 2, 3, 4, 5, 6, -1);
     model.set_delay_override(2, 2, 3, 4, 5, 6, -2);
 
     model.write(kOverrideDelayBin);
 
-    OverrideDelayModel model2(false);
+    OverrideDelayModel model2;
     model2.read(kOverrideDelayBin);
 
     const auto& delays1 = model.base_delay_model()->delays();

@@ -7,10 +7,9 @@ Start by installing ruby1.9.1-dev. On Debian-based operating systems:
 
     sudo apt-get install ruby-dev
 
-Then install Jekyll 3.8.1 (Jekyll 4.x will NOT work due as they removed Pygments support):
+Then install Jekyll:
 
-    sudo gem install jekyll -v 3.8.1
-    sudo gem install pygments.rb
+    sudo gem install jekyll pygments.rb
 
 Now install Pygments and SetupTools to be able to install the CapnProto lexer.
 On Debian based operating systems:
@@ -25,7 +24,7 @@ Next, install the custom Pygments syntax highlighter:
 
 Now you can launch a local server:
 
-    jekyll _3.8.1_ serve --watch
+    jekyll serve --watch
 
 Edit, test, commit.
 

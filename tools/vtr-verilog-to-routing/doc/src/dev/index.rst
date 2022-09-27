@@ -6,10 +6,10 @@ Developer Guide
 .. toctree::
     :glob:
 
-    ../CONTRIBUTING
-    ../README.developers.md
+    contributing/index
+    developing
     c_api_doc
     code_documentation
     tutorials/index
-    ../SUPPORT
-    ../LICENSE
+    support
+    license

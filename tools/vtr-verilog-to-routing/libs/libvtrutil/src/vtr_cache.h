@@ -5,21 +5,19 @@
 
 namespace vtr {
 
-///@brief An implementation of a simple cache
+// Simple cache
 template<typename CacheKey, typename CacheValue>
 class Cache {
   public:
-    ///@brief Clear cache.
+    // Clear cache.
     void clear() {
         key_ = CacheKey();
         value_.reset();
     }
-    /**
-     * @brief Check if the cache is valid.
-     * 
-     * Returns the cached value if present and valid.
-     * Returns nullptr if the cache is invalid.
-     */
+
+    // Check if the cache is valid, and return the cached value if present and valid.
+    //
+    // Returns nullptr if the cache is invalid.
     const CacheValue* get(const CacheKey& key) const {
         if (key == key_ && value_) {
             return value_.get();
@@ -28,7 +26,7 @@ class Cache {
         }
     }
 
-    ///@brief Update the cache.
+    // Update the cache.
     const CacheValue* set(const CacheKey& key, std::unique_ptr<CacheValue> value) {
         key_ = key;
         value_ = std::move(value);

@@ -1,10 +1,7 @@
 #pragma once
 
 #include "rr_graph_storage.h"
-#include "rr_graph_view.h"
-#include "clustered_netlist_fwd.h"
 #include <map>
-#include <set>
 
 /**
  * @brief Global routines related to displaying RR node overuse info.
@@ -24,7 +21,7 @@
 void log_overused_nodes_status(int max_logged_overused_rr_nodes);
 
 ///@brief Print out RR node overuse info in a post-VPR report file.
-void report_overused_nodes(const RRGraphView& rr_graph);
+void report_overused_nodes();
 
 ///@brief Generate a overused RR nodes to congested nets lookup table.
 void generate_overused_nodes_to_congested_net_lookup(std::map<RRNodeId, std::set<ClusterNetId>>& nodes_to_nets_lookup);

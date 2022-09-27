@@ -83,7 +83,6 @@ target_link_libraries(libvpr
                         libtatum
                         libargparse
                         libpugixml
-                        librrgraph
 )
 
 #link graphics library only when graphics set to on
@@ -136,7 +135,7 @@ target_link_libraries(vpr libvpr)
 #Supress IPO link warnings if IPO is enabled
 get_target_property(VPR_USES_IPO vpr INTERPROCEDURAL_OPTIMIZATION)
 if (VPR_USES_IPO)
-    set_property(TARGET vpr APPEND PROPERTY LINK_FLAGS ${IPO_LINK_WARN_SUPRESS_FLAGS})
+    set_target_properties(vpr PROPERTIES LINK_FLAGS ${IPO_LINK_WARN_SUPRESS_FLAGS})
 endif()
 
 
@@ -191,8 +190,6 @@ if (VTR_ENABLE_STRICT_COMPILE)
     set(VPR_STRICT_COMPILE_FLAGS_TO_CHECK
         #GCC-like
         "-Werror"
-        # due to the pointer hackery in timing_driven_route_structs and BinaryHeap.heap_
-        "-Wno-error=free-nonheap-object"
         )
 
     foreach(flag ${VPR_STRICT_COMPILE_FLAGS_TO_CHECK})
@@ -232,7 +229,7 @@ endif()
 if (VPR_USE_EXECUTION_ENGINE STREQUAL "tbb")
     target_compile_definitions(libvpr PRIVATE VPR_USE_TBB)
     target_link_libraries(libvpr tbb)
-    target_link_libraries(libvpr ${TBB_tbbmalloc_proxy_LIBRARY}) #Use the scalable memory allocator
+    target_link_libraries(libvpr tbbmalloc_proxy) #Use the scalable memory allocator
     message(STATUS "VPR: will support parallel execution using '${VPR_USE_EXECUTION_ENGINE}'")
 elseif(VPR_USE_EXECUTION_ENGINE STREQUAL "serial")
     message(STATUS "VPR: will only support serial execution")
@@ -260,13 +257,13 @@ install(TARGETS vpr libvpr DESTINATION bin)
 file(GLOB_RECURSE TEST_SOURCES test/*.cpp)
 add_executable(test_vpr ${TEST_SOURCES})
 target_link_libraries(test_vpr
-                        Catch2::Catch2WithMain
+                        libcatch
                         libvpr)
 
 #Supress IPO link warnings if IPO is enabled
 get_target_property(TEST_VPR_USES_IPO vpr INTERPROCEDURAL_OPTIMIZATION)
 if (TEST_VPR_USES_IPO)
-    set_property(TARGET test_vpr APPEND PROPERTY LINK_FLAGS ${IPO_LINK_WARN_SUPRESS_FLAGS})
+    set_target_properties(test_vpr PROPERTIES LINK_FLAGS ${IPO_LINK_WARN_SUPRESS_FLAGS})
 endif()
 
 add_test(NAME test_vpr
@@ -274,3 +271,24 @@ add_test(NAME test_vpr
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test
     )
 
+add_custom_target(
+    generate_rr_graph_serializers
+    COMMAND ${CMAKE_COMMAND} -E remove_directory rr_graph_generate
+    COMMAND ${CMAKE_COMMAND} -E make_directory rr_graph_generate
+    COMMAND ${CMAKE_COMMAND} -E chdir rr_graph_generate git clone https://github.com/duck2/uxsdcxx
+    COMMAND python3 -mpip install --user -r rr_graph_generate/uxsdcxx/requirements.txt
+    COMMAND ${CMAKE_COMMAND} -E chdir rr_graph_generate python3 uxsdcxx/uxsdcxx.py ${CMAKE_CURRENT_SOURCE_DIR}/src/route/rr_graph.xsd
+    COMMAND ${CMAKE_COMMAND} -E chdir rr_graph_generate python3 uxsdcxx/uxsdcap.py ${CMAKE_CURRENT_SOURCE_DIR}/src/route/rr_graph.xsd
+    COMMAND ${CMAKE_COMMAND} -E copy
+        rr_graph_generate/rr_graph_uxsdcxx.h
+        rr_graph_generate/rr_graph_uxsdcxx_capnp.h
+        rr_graph_generate/rr_graph_uxsdcxx_interface.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/route/gen
+    COMMAND ${CMAKE_COMMAND} -E copy
+        rr_graph_generate/rr_graph_uxsdcxx.capnp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../libs/libvtrcapnproto/gen
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/route/rr_graph.xsd
+    WORKING_DIRECTORY
+        ${CMAKE_CURRENT_BINARY_DIR}
+        )

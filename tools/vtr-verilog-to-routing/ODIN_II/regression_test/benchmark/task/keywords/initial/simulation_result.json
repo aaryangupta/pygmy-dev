@@ -1,41 +1,41 @@
 {
     "initial/initial_delays/no_arch": {
         "test_name": "initial/initial_delays/no_arch",
-        "generated_blif": "initial_delays_generated.blif",
+        "blif": "initial_delays.blif",
         "exit": 134,
         "errors": [
-            "[SIMULATION] Vector files differ."
+            "[OUTPUT_BLIF] Vector files differ."
         ],
         "warnings": [
-            "[SIMULATION] Simulation produced fewer than 6 vectors."
+            "[OUTPUT_BLIF] Simulation produced fewer than 6 vectors."
         ]
     },
     "initial/initial_multiple_blocks/no_arch": {
         "test_name": "initial/initial_multiple_blocks/no_arch",
-        "generated_blif": "initial_multiple_blocks_generated.blif",
+        "blif": "initial_multiple_blocks.blif",
         "exit": 134,
         "errors": [
-            "[SIMULATION] Vector files differ."
+            "[OUTPUT_BLIF] Vector files differ."
         ],
         "warnings": [
-            "[SIMULATION] Simulation produced fewer than 8 vectors."
+            "[OUTPUT_BLIF] Simulation produced fewer than 8 vectors."
         ]
     },
     "initial/initial_multiple_statements/no_arch": {
         "test_name": "initial/initial_multiple_statements/no_arch",
-        "generated_blif": "initial_multiple_statements_generated.blif",
+        "blif": "initial_multiple_statements.blif",
         "exit": 134,
         "errors": [
-            "[SIMULATION] Vector files differ."
+            "[OUTPUT_BLIF] Vector files differ."
         ],
         "warnings": [
-            "[SIMULATION] Simulation produced fewer than 2 vectors."
+            "[OUTPUT_BLIF] Simulation produced fewer than 2 vectors."
         ]
     },
     "DEFAULT": {
         "test_name": "n/a",
         "architecture": "n/a",
-        "generated_blif": "n/a",
+        "blif": "n/a",
         "exit": 0,
         "leaks": 0,
         "errors": [],

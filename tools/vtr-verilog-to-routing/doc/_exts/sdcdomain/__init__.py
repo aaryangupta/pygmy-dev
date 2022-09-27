@@ -9,14 +9,8 @@ def setup(app):
             name="sdc",
             label="SDC",
             elements=dict(
-                command=dict(
-                    objname="SDC Command",
-                    indextemplate="pair: %s; SDC Command",
-                ),
-                option=dict(
-                    objname="SDC Option",
-                    indextemplate="pair: %s; SDC Option",
-                ),
+                command=dict(objname="SDC Command", indextemplate="pair: %s; SDC Command",),
+                option=dict(objname="SDC Option", indextemplate="pair: %s; SDC Option",),
                 # var   = dict(
                 # objname = "Make Variable",
                 # indextemplate = "pair: %s; Make Variable"

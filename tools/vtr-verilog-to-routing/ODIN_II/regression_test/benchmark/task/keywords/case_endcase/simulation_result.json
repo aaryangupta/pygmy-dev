@@ -1,7 +1,7 @@
 {
     "case_endcase/case/no_arch": {
         "test_name": "case_endcase/case/no_arch",
-        "generated_blif": "case_generated.blif",
+        "blif": "case.blif",
         "max_rss(MiB)": 15.1,
         "exec_time(ms)": 5.3,
         "simulation_time(ms)": 1.5,
@@ -17,7 +17,7 @@
     "DEFAULT": {
         "test_name": "n/a",
         "architecture": "n/a",
-        "generated_blif": "n/a",
+        "blif": "n/a",
         "exit": 0,
         "leaks": 0,
         "errors": [],

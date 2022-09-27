@@ -9,8 +9,7 @@ module 	ode(clock,
 		y_pi_in, 
 		t_pi_in,
 		y_pi_out,
-		t_pi_out,
-        x1_control
+		t_pi_out 
 );
 
 // SIGNAL DECLARATIONS
@@ -1599,7 +1598,7 @@ module b_left_shifter_new (
 input [55:0] shift_in;
 input [5:0] shift_value;
 output [55:0] shift_out;
-reg [55:0] shift_out;
+reg [47:0] shift_out;
 
 always @(shift_value)
 begin
@@ -2257,7 +2256,7 @@ module b_right_shifter_new (
 input [26:0] shift_in;
 input [4:0] shift_value;
 output [26:0] shift_out;
-reg [26:0] shift_out;
+reg [47:0] shift_out;
 
 always @(shift_value)
 begin

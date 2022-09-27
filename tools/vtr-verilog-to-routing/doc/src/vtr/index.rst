@@ -38,8 +38,7 @@ VTR also includes a set of benchmark designs known to work with the design flow.
 
    cad_flow
    get_vtr
-   ../BUILDING
-   optional_build_info
+   install_vtr
    running_vtr
    benchmarks
    power_estimation/index.rst

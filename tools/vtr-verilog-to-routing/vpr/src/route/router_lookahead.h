@@ -37,8 +37,7 @@ std::unique_ptr<RouterLookahead> make_router_lookahead(
     e_router_lookahead router_lookahead_type,
     std::string write_lookahead,
     std::string read_lookahead,
-    const std::vector<t_segment_inf>& segment_inf,
-    bool is_flat);
+    const std::vector<t_segment_inf>& segment_inf);
 
 // Clear router lookahead cache (e.g. when changing or free rrgraph).
 void invalidate_router_lookahead_cache();
@@ -51,8 +50,7 @@ const RouterLookahead* get_cached_router_lookahead(
     e_router_lookahead router_lookahead_type,
     std::string write_lookahead,
     std::string read_lookahead,
-    const std::vector<t_segment_inf>& segment_inf,
-    bool is_flat);
+    const std::vector<t_segment_inf>& segment_inf);
 
 class ClassicLookahead : public RouterLookahead {
   public:

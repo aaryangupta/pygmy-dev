@@ -21,9 +21,11 @@
 
 #pragma once
 
-#include "serialize.h"
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
 
-CAPNP_BEGIN_HEADER
+#include "serialize.h"
 
 namespace capnp {
 
@@ -124,5 +126,3 @@ inline void writePackedMessageToFd(int fd, MessageBuilder& builder) {
 }
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

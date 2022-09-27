@@ -55,7 +55,6 @@ static void update_cluster_pin_with_post_routing_results(const DeviceContext& de
                                                          const int& sub_tile_z,
                                                          size_t& num_mismatches,
                                                          const bool& verbose) {
-    const auto& node_lookup = device_ctx.rr_graph.node_lookup();
     /* Handle each pin */
     auto logical_block = clustering_ctx.clb_nlist.block_type(blk_id);
     auto physical_tile = device_ctx.grid[grid_coord.x()][grid_coord.y()].type;
@@ -116,16 +115,17 @@ static void update_cluster_pin_with_post_routing_results(const DeviceContext& de
         /* Get the ptc num for the pin in rr_graph, we need to consider the sub tile offset here
          * sub tile offset is the location in a sub tile whose capacity is larger than zero
          */
-        int physical_pin = get_physical_pin_at_sub_tile_location(physical_tile, logical_block, sub_tile_z, pb_type_pin);
+        int physical_pin = get_post_placement_physical_pin(physical_tile, logical_block, sub_tile_z, pb_type_pin);
         VTR_ASSERT(physical_pin < physical_tile->num_pins);
 
-        auto pin_type = get_pin_type_from_pin_physical_num(physical_tile, physical_pin);
+        auto pin_class = physical_tile->pin_class[physical_pin];
+        auto class_inf = physical_tile->class_inf[pin_class];
 
         t_rr_type rr_node_type;
-        if (pin_type == DRIVER) {
+        if (class_inf.type == DRIVER) {
             rr_node_type = OPIN;
         } else {
-            VTR_ASSERT(pin_type == RECEIVER);
+            VTR_ASSERT(class_inf.type == RECEIVER);
             rr_node_type = IPIN;
         }
 
@@ -152,13 +152,15 @@ static void update_cluster_pin_with_post_routing_results(const DeviceContext& de
         short valid_routing_net_cnt = 0;
         for (const e_side& pin_side : pin_sides) {
             /* Find the net mapped to this pin in routing results */
-            RRNodeId rr_node = node_lookup.find_node(grid_coord.x(), grid_coord.y(), rr_node_type, physical_pin, pin_side);
+            const int& rr_node = get_rr_node_index(device_ctx.rr_node_indices,
+                                                   grid_coord.x(), grid_coord.y(),
+                                                   rr_node_type, physical_pin, pin_side);
 
             /* Bypass invalid nodes, after that we must have a valid rr_node id */
-            if (!rr_node) {
+            if (OPEN == rr_node) {
                 continue;
             }
-            VTR_ASSERT((size_t)rr_node < device_ctx.rr_graph.num_nodes());
+            VTR_ASSERT((size_t)rr_node < device_ctx.rr_nodes.size());
 
             /* If the node has been visited on the other side, we just skip it */
             if (visited_rr_nodes.end() != std::find(visited_rr_nodes.begin(), visited_rr_nodes.end(), RRNodeId(rr_node))) {
@@ -177,19 +179,19 @@ static void update_cluster_pin_with_post_routing_results(const DeviceContext& de
              * - A invalid net id (others should be all invalid as well)
              *   assume that this pin is not used by router
              */
-            if (rr_node_nets[rr_node]) {
+            if (rr_node_nets[RRNodeId(rr_node)]) {
                 if (routing_net_id) {
-                    if (routing_net_id != rr_node_nets[rr_node]) {
+                    if (routing_net_id != rr_node_nets[RRNodeId(rr_node)]) {
                         VTR_LOG_ERROR("Pin '%s' is mapped to two nets: '%s' and '%s'\n",
                                       pb_graph_pin->to_string().c_str(),
                                       clustering_ctx.clb_nlist.net_name(routing_net_id).c_str(),
-                                      clustering_ctx.clb_nlist.net_name(rr_node_nets[rr_node]).c_str());
+                                      clustering_ctx.clb_nlist.net_name(rr_node_nets[RRNodeId(rr_node)]).c_str());
                     }
-                    VTR_ASSERT(routing_net_id == rr_node_nets[rr_node]);
+                    VTR_ASSERT(routing_net_id == rr_node_nets[RRNodeId(rr_node)]);
                 }
-                routing_net_id = rr_node_nets[rr_node];
+                routing_net_id = rr_node_nets[RRNodeId(rr_node)];
                 valid_routing_net_cnt++;
-                visited_rr_nodes.push_back(rr_node);
+                visited_rr_nodes.push_back(RRNodeId(rr_node));
             }
         }
 
@@ -1031,8 +1033,7 @@ void sync_netlists_to_routing(const DeviceContext& device_ctx,
                               ClusteringContext& clustering_ctx,
                               const PlacementContext& placement_ctx,
                               const RoutingContext& routing_ctx,
-                              const bool& verbose,
-                              bool is_flat) {
+                              const bool& verbose) {
     vtr::ScopedStartFinishTimer timer("Synchronize the packed netlist to routing optimization");
 
     /* Reset the database for post-routing clb net mapping */
@@ -1043,8 +1044,7 @@ void sync_netlists_to_routing(const DeviceContext& device_ctx,
     vtr::vector<RRNodeId, ClusterNetId> rr_node_nets = annotate_rr_node_nets(device_ctx,
                                                                              clustering_ctx,
                                                                              routing_ctx,
-                                                                             verbose,
-                                                                             is_flat);
+                                                                             verbose);
 
     IntraLbPbPinLookup intra_lb_pb_pin_lookup(device_ctx.logical_block_types);
 

@@ -9563,283 +9563,373 @@
     </DevicePortMappingTable>
   </Routing>
   <Packages>
-    <PACKAGE name="PU90">
+    <PACKAGE name="WR42">
       <Pins>
-        <Pin name="FBIO_0">
+        <Pin name="A7" alias="IO_0">
           <cell name="IO2" />
         </Pin>
-        <Pin name="IO3">
-          <cell name="IO3" />
-        </Pin>
-        <Pin name="FBIO_1">
+        <Pin name="B7" alias="IO_1">
           <cell name="IO4" />
         </Pin>
-        <Pin name="IO5">
-          <cell name="IO5" />
-        </Pin>
-        <Pin name="FBIO_2">
-          <cell name="IO6" />
-        </Pin>
-        <Pin name="IO8">
-          <cell name="IO8" />
-        </Pin>
-        <Pin name="FBIO_3">
+        <Pin name="C7" alias="IO_3">
           <cell name="IO9" />
         </Pin>
-        <Pin name="IO10">
-          <cell name="IO10" />
-        </Pin>
-        <Pin name="IO11">
-          <cell name="IO11" />
-        </Pin>
-        <Pin name="FBIO_4">
-          <cell name="IO12" />
-        </Pin>
-        <Pin name="IO13">
-          <cell name="IO13" />
-        </Pin>
-        <Pin name="FBIO_5">
-          <cell name="IO14" />
-        </Pin>
-        <Pin name="IO15">
-          <cell name="IO15" />
-        </Pin>
-        <Pin name="FBIO_6">
+        <Pin name="A6" alias="IO_6">
           <cell name="IO16" />
         </Pin>
-        <Pin name="IO17">
-          <cell name="IO17" />
-        </Pin>
-        <Pin name="IO18">
-          <cell name="IO18" />
-        </Pin>
-        <Pin name="IO19">
-          <cell name="IO19" />
-        </Pin>
-        <Pin name="FBIO_7">
-          <cell name="IO20" />
-          <cell name="IO21" />
-        </Pin>
-        <Pin name="IO22">
-          <cell name="IO22" />
-        </Pin>
-        <Pin name="IO23">
-          <cell name="IO23" />
-        </Pin>
-        <Pin name="FBIO_8">
-          <cell name="IO24" />
+        <Pin name="B6" alias="IO_8">
           <cell name="IO25" />
         </Pin>
-        <Pin name="IO26">
-          <cell name="IO26" />
-        </Pin>
-        <Pin name="IO27">
-          <cell name="IO27" />
-        </Pin>
-        <Pin name="IO28">
-          <cell name="IO28" />
-        </Pin>
-        <Pin name="FBIO_9">
+        <Pin name="A5" alias="IO_9">
           <cell name="IO29" />
-        </Pin>
-        <Pin name="IO30">
-          <cell name="IO30" />
-        </Pin>
-        <Pin name="FBIO_10">
+        </Pin>     
+        <Pin name="B5" alias="IO_10">
           <cell name="IO31" />
-        </Pin>
-        <Pin name="IO32">
-          <cell name="IO32" />
-        </Pin>
-        <Pin name="FBIO_11">
-          <cell name="IO33" />
-        </Pin>
-        <Pin name="IO34">
-          <cell name="IO34" />
-        </Pin>
-        <Pin name="IO35">
-          <cell name="IO35" />
-        </Pin>
-        <Pin name="FBIO_12">
-          <cell name="IO36" />
-        </Pin>
-        <Pin name="IO37">
-          <cell name="IO37" />
-        </Pin>
-        <Pin name="FBIO_13">
-          <cell name="IO38" />
-        </Pin>
-        <Pin name="IO40">
-          <cell name="IO40" />
-        </Pin>
-        <Pin name="FBIO_14">
+        </Pin>     
+        <Pin name="A4" alias="IO_14">
           <cell name="IO41" />
-        </Pin>
-        <Pin name="FBIO_15">
+        </Pin>     
+        <Pin name="B4" alias="IO_15">
           <cell name="IO43" />
-        </Pin>
-        <Pin name="IO44">
-          <cell name="IO44" />
-        </Pin>
-        <Pin name="IO48">
-          <cell name="IO48" />
-        </Pin>
-        <Pin name="IO49">
-          <cell name="IO49" />
-        </Pin>
-        <Pin name="IO50">
-          <cell name="IO50" />
-        </Pin>
-        <Pin name="IO52">
-          <cell name="IO52" />
-        </Pin>
-        <Pin name="IO53">
-          <cell name="IO53" />
-        </Pin>
-        <Pin name="IO56">
-          <cell name="IO56" />
-        </Pin>
-        <Pin name="FBIO_16">
+        </Pin>     
+        <Pin name="E1" alias="IO_16">
           <cell name="IO57" />
-        </Pin>
-        <Pin name="FBIO_17">
+        </Pin>     
+        <Pin name="D1" alias="IO_17">
           <cell name="IO59" />
-        </Pin>
-        <Pin name="IO61">
-          <cell name="IO61" />
-        </Pin>
-        <Pin name="FBIO_18">
-          <cell name="IO62" />
-        </Pin>
-        <Pin name="FBIO_19">
+        </Pin>     
+        <Pin name="C1" alias="IO_19">
           <cell name="IO64" />
-        </Pin>
-        <Pin name="FBIO_20">
+        </Pin>     
+        <Pin name="F2" alias="IO_20">
           <cell name="IO66" />
-        </Pin>
-        <Pin name="IO67">
-          <cell name="IO67" />
-        </Pin>
-        <Pin name="FBIO_21">
-          <cell name="IO69" />
-        </Pin>
-        <Pin name="IO71">
-          <cell name="IO71" />
-        </Pin>
-        <Pin name="FBIO_22">
-          <cell name="IO72" />
-          <cell name="IO73" />
-        </Pin>
-        <Pin name="IO74">
-          <cell name="IO74" />
-        </Pin>
-        <Pin name="FBIO_23">
-          <cell name="IO76" />
+        </Pin>     
+        <Pin name="E2" alias="IO_23">
           <cell name="IO77" />
-        </Pin>
-        <Pin name="IO78">
-          <cell name="IO78" />
-        </Pin>
-        <Pin name="FBIO_24">
-          <cell name="IO80" />
+        </Pin>     
+        <Pin name="D2" alias="IO_24">
           <cell name="IO81" />
-        </Pin>
-        <Pin name="IO82">
-          <cell name="IO82" />
-        </Pin>
-        <Pin name="FBIO_25">
+        </Pin>     
+        <Pin name="D3" alias="IO_25">
           <cell name="IO84" />
-        </Pin>
-        <Pin name="IO85">
-          <cell name="IO85" />
-        </Pin>
-        <Pin name="FBIO_26">
-          <cell name="IO87" />
-        </Pin>
-        <Pin name="FBIO_27">
-          <cell name="IO89" />
-        </Pin>
-        <Pin name="IO91">
-          <cell name="IO91" />
-        </Pin>
-        <Pin name="FBIO_28">
+        </Pin>     
+        <Pin name="F3" alias="IO_28">
           <cell name="IO92" />
-        </Pin>
-        <Pin name="FBIO_29">
+        </Pin>     
+        <Pin name="E3" alias="IO_29">
           <cell name="IO94" />
-        </Pin>
-        <Pin name="IO95">
-          <cell name="IO95" />
-        </Pin>
-        <Pin name="FBIO_30">
+        </Pin>     
+        <Pin name="F4" alias="IO_30">
           <cell name="IO97" />
-        </Pin>
-        <Pin name="FBIO_31">
+        </Pin>     
+        <Pin name="E4" alias="IO_31">
           <cell name="IO99" />
-        </Pin>
-        <Pin name="SFBIO_0">
-          <cell name="SFB_0_IO" />
-        </Pin>
-        <Pin name="SFBIO_1">
-          <cell name="SFB_1_IO" />
-        </Pin>
-        <Pin name="SFBIO_2">
+        </Pin>     
+        <Pin name="D5" alias="IO_34">
           <cell name="SFB_2_IO" />
-        </Pin>
-        <Pin name="IO105">
-          <cell name="IO105" />
-        </Pin>
-        <Pin name="SFBIO_3">
-          <cell name="SFB_3_IO" />
-        </Pin>
-        <Pin name="SFBIO_4">
+        </Pin>     
+        <Pin name="F5" alias="IO_36">
           <cell name="SFB_4_IO" />
-        </Pin>
-        <Pin name="IO108">
-          <cell name="IO108" />
-        </Pin>
-        <Pin name="SFBIO_5">
-          <cell name="SFB_5_IO" />
-        </Pin>
-        <Pin name="SFBIO_6">
+        </Pin>     
+        <Pin name="E6" alias="IO_38">
           <cell name="SFB_6_IO" />
-        </Pin>
-        <Pin name="IO111">
-          <cell name="IO111" />
-        </Pin>
-        <Pin name="IO112">
-          <cell name="IO112" />
-        </Pin>
-        <Pin name="SFBIO_7">
+        </Pin>     
+        <Pin name="F6" alias="IO_39">
           <cell name="SFB_7_IO" />
-        </Pin>
-        <Pin name="SFBIO_8">
-          <cell name="SFB_8_IO" />
-        </Pin>
-        <Pin name="SFBIO_9">
-          <cell name="SFB_9_IO" />
-        </Pin>
-        <Pin name="IO117">
-          <cell name="IO117" />
-        </Pin>
-        <Pin name="SFBIO_10">
-          <cell name="SFB_10_IO" />
-        </Pin>
-        <Pin name="SFBIO_11">
+        </Pin>     
+        <Pin name="D7" alias="IO_43">
           <cell name="SFB_11_IO" />
-        </Pin>
-        <Pin name="IO120">
-          <cell name="IO120" />
-        </Pin>
-        <Pin name="SFBIO_12">
+        </Pin>     
+        <Pin name="E7" alias="IO_44">
           <cell name="SFB_12_IO" />
-        </Pin>
-        <Pin name="IO122">
-          <cell name="IO122" />
-        </Pin>
-        <Pin name="SFBIO_13">
+        </Pin>     
+        <Pin name="F7" alias="IO_45">
           <cell name="SFB_13_IO" />
-        </Pin>
+        </Pin>     
+      </Pins>
+    </PACKAGE>
+    <PACKAGE name="PD64">
+      <Pins>
+        <Pin name="B1" alias="IO_0">
+          <cell name="IO2" />
+        </Pin> 
+        <Pin name="C1" alias="IO_1">
+          <cell name="IO4" />
+        </Pin> 
+        <Pin name="A1" alias="IO_2">
+          <cell name="IO6" />
+        </Pin> 
+        <Pin name="A2" alias="IO_3">
+          <cell name="IO9" />
+        </Pin> 
+        <Pin name="B2" alias="IO_4">
+          <cell name="IO12" />
+        </Pin> 
+        <Pin name="C3" alias="IO_5">
+          <cell name="IO14" />
+        </Pin> 
+        <Pin name="B3" alias="IO_6">
+          <cell name="IO16" />
+        </Pin> 
+        <Pin name="A3" alias="IO_7">
+          <cell name="IO20" />
+        </Pin> 
+        <Pin name="C4" alias="IO_8">
+          <cell name="IO25" />
+        </Pin> 
+        <Pin name="B4" alias="IO_9">
+          <cell name="IO29" />
+        </Pin> 
+        <Pin name="A4" alias="IO_10">
+          <cell name="IO31" />
+        </Pin> 
+        <Pin name="C5" alias="IO_11">
+          <cell name="IO33" />
+        </Pin> 
+        <Pin name="B5" alias="IO_12">
+          <cell name="IO36" />
+        </Pin> 
+        <Pin name="D6" alias="IO_13">
+          <cell name="IO38" />
+        </Pin> 
+        <Pin name="A5" alias="IO_14">
+          <cell name="IO41" />
+        </Pin> 
+        <Pin name="C6" alias="IO_15">
+          <cell name="IO43" />
+        </Pin> 
+        <Pin name="E7" alias="IO_16">
+          <cell name="IO57" />
+        </Pin> 
+        <Pin name="D7" alias="IO_17">
+          <cell name="IO59" />
+        </Pin> 
+        <Pin name="E8" alias="IO_18">
+          <cell name="IO62" />
+        </Pin> 
+        <Pin name="H8" alias="IO_19">
+          <cell name="IO64" />
+        </Pin> 
+        <Pin name="G8" alias="IO_20">
+          <cell name="IO66" />
+        </Pin> 
+        <Pin name="H7" alias="IO_21">
+          <cell name="IO69" />
+        </Pin> 
+        <Pin name="G7" alias="IO_22">
+          <cell name="IO73" />
+        </Pin> 
+        <Pin name="H6" alias="IO_23">
+          <cell name="IO77" />
+        </Pin> 
+        <Pin name="G6" alias="IO_24">
+          <cell name="IO81" />
+        </Pin> 
+        <Pin name="F7" alias="IO_25">
+          <cell name="IO84" />
+        </Pin> 
+        <Pin name="F6" alias="IO_26">
+          <cell name="IO87" />
+        </Pin> 
+        <Pin name="H5" alias="IO_27">
+          <cell name="IO89" />
+        </Pin> 
+        <Pin name="G5" alias="IO_28">
+          <cell name="IO92" />
+        </Pin> 
+        <Pin name="F5" alias="IO_29">
+          <cell name="IO94" />
+        </Pin> 
+        <Pin name="F4" alias="IO_30">
+          <cell name="IO97" />
+        </Pin> 
+        <Pin name="G4" alias="IO_31">
+          <cell name="IO99" />
+        </Pin> 
+        <Pin name="H4" alias="IO_32">
+          <cell name="SFB_0_IO" />
+        </Pin>     
+        <Pin name="E3" alias="IO_33">
+          <cell name="SFB_1_IO" />
+        </Pin>     
+        <Pin name="F3" alias="IO_34">
+          <cell name="SFB_2_IO" />
+        </Pin>     
+        <Pin name="F2" alias="IO_35">
+          <cell name="SFB_3_IO" />
+        </Pin>     
+        <Pin name="H3" alias="IO_36">
+          <cell name="SFB_4_IO" />
+        </Pin>     
+        <Pin name="G2" alias="IO_37">
+          <cell name="SFB_5_IO" />
+        </Pin>     
+        <Pin name="E2" alias="IO_38">
+          <cell name="SFB_6_IO" />
+        </Pin>     
+        <Pin name="H2" alias="IO_39">
+          <cell name="SFB_7_IO" />
+        </Pin>     
+        <Pin name="D2" alias="IO_40">
+          <cell name="SFB_8_IO" />
+        </Pin>     
+        <Pin name="F1" alias="IO_41">
+          <cell name="SFB_9_IO" />
+        </Pin>     
+        <Pin name="H1" alias="IO_42">
+          <cell name="SFB_10_IO" />
+        </Pin>     
+        <Pin name="D1" alias="IO_43">
+          <cell name="SFB_11_IO" />
+        </Pin>     
+        <Pin name="E1" alias="IO_44">
+          <cell name="SFB_12_IO" />
+        </Pin>     
+        <Pin name="G1" alias="IO_45">
+          <cell name="SFB_13_IO" />
+        </Pin>     
+      </Pins>
+    </PACKAGE>
+    <PACKAGE name="PU64">
+      <Pins>
+        <Pin name="4" alias="IO_0">
+          <cell name="IO2" />
+        </Pin> 
+        <Pin name="5" alias="IO_1">
+          <cell name="IO4" />
+        </Pin> 
+        <Pin name="6" alias="IO_2">
+          <cell name="IO6" />
+        </Pin> 
+        <Pin name="2" alias="IO_3">
+          <cell name="IO9" />
+        </Pin> 
+        <Pin name="3" alias="IO_4">
+          <cell name="IO12" />
+        </Pin> 
+        <Pin name="64" alias="IO_5">
+          <cell name="IO14" />
+        </Pin> 
+        <Pin name="62" alias="IO_6">
+          <cell name="IO16" />
+        </Pin> 
+        <Pin name="63" alias="IO_7">
+          <cell name="IO20" />
+        </Pin> 
+        <Pin name="61" alias="IO_8">
+          <cell name="IO25" />
+        </Pin> 
+        <Pin name="60" alias="IO_9">
+          <cell name="IO29" />
+        </Pin> 
+        <Pin name="59" alias="IO_10">
+          <cell name="IO31" />
+        </Pin> 
+        <Pin name="57" alias="IO_11">
+          <cell name="IO33" />
+        </Pin> 
+        <Pin name="56" alias="IO_12">
+          <cell name="IO36" />
+        </Pin> 
+        <Pin name="55" alias="IO_13">
+          <cell name="IO38" />
+        </Pin> 
+        <Pin name="54" alias="IO_14">
+          <cell name="IO41" />
+        </Pin> 
+        <Pin name="53" alias="IO_15">
+          <cell name="IO43" />
+        </Pin> 
+        <Pin name="40" alias="IO_16">
+          <cell name="IO57" />
+        </Pin> 
+        <Pin name="42" alias="IO_17">
+          <cell name="IO59" />
+        </Pin> 
+        <Pin name="38" alias="IO_18">
+          <cell name="IO62" />
+        </Pin> 
+        <Pin name="36" alias="IO_19">
+          <cell name="IO64" />
+        </Pin> 
+        <Pin name="37" alias="IO_20">
+          <cell name="IO66" />
+        </Pin> 
+        <Pin name="39" alias="IO_21">
+          <cell name="IO69" />
+        </Pin> 
+        <Pin name="34" alias="IO_22">
+          <cell name="IO73" />
+        </Pin> 
+        <Pin name="33" alias="IO_23">
+          <cell name="IO77" />
+        </Pin> 
+        <Pin name="32" alias="IO_24">
+          <cell name="IO81" />
+        </Pin> 
+        <Pin name="31" alias="IO_25">
+          <cell name="IO84" />
+        </Pin> 
+        <Pin name="30" alias="IO_26">
+          <cell name="IO87" />
+        </Pin> 
+        <Pin name="28" alias="IO_27">
+          <cell name="IO89" />
+        </Pin> 
+        <Pin name="27" alias="IO_28">
+          <cell name="IO92" />
+        </Pin> 
+        <Pin name="26" alias="IO_29">
+          <cell name="IO94" />
+        </Pin> 
+        <Pin name="25" alias="IO_30">
+          <cell name="IO97" />
+        </Pin> 
+        <Pin name="23" alias="IO_31">
+          <cell name="IO99" />
+        </Pin> 
+        <Pin name="22" alias="IO_32">
+          <cell name="SFB_0_IO" />
+        </Pin>     
+        <Pin name="21" alias="IO_33">
+          <cell name="SFB_1_IO" />
+        </Pin>     
+        <Pin name="20" alias="IO_34">
+          <cell name="SFB_2_IO" />
+        </Pin>     
+        <Pin name="18" alias="IO_35">
+          <cell name="SFB_3_IO" />
+        </Pin>     
+        <Pin name="17" alias="IO_36">
+          <cell name="SFB_4_IO" />
+        </Pin>     
+        <Pin name="15" alias="IO_37">
+          <cell name="SFB_5_IO" />
+        </Pin>     
+        <Pin name="16" alias="IO_38">
+          <cell name="SFB_6_IO" />
+        </Pin>     
+        <Pin name="11" alias="IO_39">
+          <cell name="SFB_7_IO" />
+        </Pin>     
+        <Pin name="13" alias="IO_40">
+          <cell name="SFB_8_IO" />
+        </Pin>     
+        <Pin name="14" alias="IO_41">
+          <cell name="SFB_9_IO" />
+        </Pin>     
+        <Pin name="10" alias="IO_42">
+          <cell name="SFB_10_IO" />
+        </Pin>     
+        <Pin name="7" alias="IO_43">
+          <cell name="SFB_11_IO" />
+        </Pin>     
+        <Pin name="8" alias="IO_44">
+          <cell name="SFB_12_IO" />
+        </Pin>     
+        <Pin name="9" alias="IO_45">
+          <cell name="SFB_13_IO" />
+        </Pin>     
       </Pins>
     </PACKAGE>
   </Packages>

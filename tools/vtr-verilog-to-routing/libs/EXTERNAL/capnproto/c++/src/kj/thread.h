@@ -21,11 +21,13 @@
 
 #pragma once
 
+#if defined(__GNUC__) && !KJ_HEADER_WARNINGS
+#pragma GCC system_header
+#endif
+
 #include "common.h"
 #include "function.h"
 #include "exception.h"
-
-KJ_BEGIN_HEADER
 
 namespace kj {
 
@@ -78,5 +80,3 @@ private:
 };
 
 }  // namespace kj
-
-KJ_END_HEADER

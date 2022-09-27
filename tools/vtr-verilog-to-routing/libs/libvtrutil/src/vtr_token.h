@@ -1,14 +1,12 @@
 /**
- * @file
- * @author Jason Luu
- * @Date July 22, 2009
- * @brief Tokenizer
+ * Jason Luu
+ * July 22, 2009
+ * Tokenizer
  */
 
 #ifndef TOKEN_H
 #define TOKEN_H
 
-///@brief Token types
 enum e_token_type {
     TOKEN_NULL,
     TOKEN_STRING,
@@ -21,7 +19,6 @@ enum e_token_type {
     TOKEN_DOT
 };
 
-///@brief Token structure
 struct t_token {
     enum e_token_type type;
     char* data;

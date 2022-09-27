@@ -27,9 +27,6 @@
 
 #include <iostream>
 
-// Mouse button used for panning (left button (1) - middle button (2) - right button (3))
-#define PANNING_MOUSE_BUTTON 1
-
 namespace ezgl {
 
 /**** Callback functions for keyboard and mouse input, and for all the ezgl predefined buttons. *****/

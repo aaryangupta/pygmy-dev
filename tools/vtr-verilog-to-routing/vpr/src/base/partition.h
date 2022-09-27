@@ -1,8 +1,6 @@
 #ifndef PARTITION_H
 #define PARTITION_H
 
-#include <string>
-
 #include "vtr_strong_id.h"
 #include "region.h"
 #include "atom_netlist_fwd.h"
@@ -52,8 +50,5 @@ class Partition {
     std::string name;            ///< name of the partition, name will be unique across partitions
     PartitionRegion part_region; ///< the union of regions that the partition can be placed in
 };
-
-///@brief used to print data from a Partition
-void print_partition(FILE* fp, Partition part);
 
 #endif /* PARTITION_H */

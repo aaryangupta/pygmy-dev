@@ -1,7 +1,7 @@
 {
     "always/case_default/no_arch": {
         "test_name": "always/case_default/no_arch",
-        "generated_blif": "case_default_generated.blif",
+        "blif": "case_default.blif",
         "max_rss(MiB)": 14.9,
         "exec_time(ms)": 8.8,
         "simulation_time(ms)": 2.9,
@@ -16,7 +16,7 @@
     },
     "always/posedge/no_arch": {
         "test_name": "always/posedge/no_arch",
-        "generated_blif": "posedge_generated.blif",
+        "blif": "posedge.blif",
         "max_rss(MiB)": 14.6,
         "exec_time(ms)": 4,
         "simulation_time(ms)": 0.7,
@@ -33,45 +33,45 @@
     },
     "always/always_clk/no_arch": {
         "test_name": "always/always_clk/no_arch",
-        "generated_blif": "always_clk_generated.blif",
+        "blif": "always_clk.blif",
         "exit": 134,
         "errors": [
-            "[SIMULATION] Vector files differ."
+            "[OUTPUT_BLIF] Vector files differ."
         ],
         "warnings": [
-            "[SIMULATION] Vector 2 mismatch:",
-            "[SIMULATION] Vector 3 mismatch:",
-            "[SIMULATION] Vector 6 mismatch:",
-            "[SIMULATION] Vector 7 mismatch:",
-            "[SIMULATION] Vector 26 mismatch:",
-            "[SIMULATION] Vector 27 mismatch:",
-            "[SIMULATION] Vector 30 mismatch:",
-            "[SIMULATION] Vector 31 mismatch:"
+            "[OUTPUT_BLIF] Vector 2 mismatch:",
+            "[OUTPUT_BLIF] Vector 3 mismatch:",
+            "[OUTPUT_BLIF] Vector 6 mismatch:",
+            "[OUTPUT_BLIF] Vector 7 mismatch:",
+            "[OUTPUT_BLIF] Vector 26 mismatch:",
+            "[OUTPUT_BLIF] Vector 27 mismatch:",
+            "[OUTPUT_BLIF] Vector 30 mismatch:",
+            "[OUTPUT_BLIF] Vector 31 mismatch:"
         ]
     },
     "always/always_posedge_negedge/no_arch": {
         "test_name": "always/always_posedge_negedge/no_arch",
-        "generated_blif": "always_posedge_negedge_generated.blif",
+        "blif": "always_posedge_negedge.blif",
         "exit": 134,
         "errors": [
-            "[SIMULATION] Vector files differ."
+            "[OUTPUT_BLIF] Vector files differ."
         ],
         "warnings": [
-            "[SIMULATION] Vector 2 mismatch:",
-            "[SIMULATION] Vector 3 mismatch:",
-            "[SIMULATION] Vector 6 mismatch:",
-            "[SIMULATION] Vector 7 mismatch:",
-            "[SIMULATION] Vector 26 mismatch:",
-            "[SIMULATION] Vector 27 mismatch:",
-            "[SIMULATION] Vector 30 mismatch:",
-            "[SIMULATION] Vector 31 mismatch:"
+            "[OUTPUT_BLIF] Vector 2 mismatch:",
+            "[OUTPUT_BLIF] Vector 3 mismatch:",
+            "[OUTPUT_BLIF] Vector 6 mismatch:",
+            "[OUTPUT_BLIF] Vector 7 mismatch:",
+            "[OUTPUT_BLIF] Vector 26 mismatch:",
+            "[OUTPUT_BLIF] Vector 27 mismatch:",
+            "[OUTPUT_BLIF] Vector 30 mismatch:",
+            "[OUTPUT_BLIF] Vector 31 mismatch:"
         ]
     },
     "always/always_asterisk_event/no_arch": {
         "test_name": "always/always_asterisk_event/no_arch",
-        "generated_blif": "always_asterisk_event_generated.blif",
+        "blif": "always_asterisk_event.blif",
         "warnings": [
-            "[SIMULATION] Vector 0 equivalent but output vector has bits set when expecting don't care :"
+            "[OUTPUT_BLIF] Vector 0 equivalent but output vector has bits set when expecting don't care :"
         ],
         "max_rss(MiB)": 30,
         "exec_time(ms)": 3.4,
@@ -87,9 +87,9 @@
     },
     "always/always_lone_asterisk/no_arch": {
         "test_name": "always/always_lone_asterisk/no_arch",
-        "generated_blif": "always_lone_asterisk_generated.blif",
+        "blif": "always_lone_asterisk.blif",
         "warnings": [
-            "[SIMULATION] Vector 0 equivalent but output vector has bits set when expecting don't care :"
+            "[OUTPUT_BLIF] Vector 0 equivalent but output vector has bits set when expecting don't care :"
         ],
         "max_rss(MiB)": 29.8,
         "exec_time(ms)": 3.5,
@@ -105,26 +105,26 @@
     },
     "always/always_or_event/no_arch": {
         "test_name": "always/always_or_event/no_arch",
-        "generated_blif": "always_or_event_generated.blif",
+        "blif": "always_or_event.blif",
         "exit": 134,
         "errors": [
-            "[SIMULATION] Vector files differ."
+            "[OUTPUT_BLIF] Vector files differ."
         ],
         "warnings": [
-            "[SIMULATION] Vector 0 equivalent but output vector has bits set when expecting don't care :",
-            "[SIMULATION] Vector 1 equivalent but output vector has bits set when expecting don't care :",
-            "[SIMULATION] Vector 2 equivalent but output vector has bits set when expecting don't care :",
-            "[SIMULATION] Vector 3 equivalent but output vector has bits set when expecting don't care :",
-            "[SIMULATION] Vector 34 mismatch:",
-            "[SIMULATION] Vector 35 mismatch:",
-            "[SIMULATION] Vector 38 mismatch:",
-            "[SIMULATION] Vector 39 mismatch:"
+            "[OUTPUT_BLIF] Vector 0 equivalent but output vector has bits set when expecting don't care :",
+            "[OUTPUT_BLIF] Vector 1 equivalent but output vector has bits set when expecting don't care :",
+            "[OUTPUT_BLIF] Vector 2 equivalent but output vector has bits set when expecting don't care :",
+            "[OUTPUT_BLIF] Vector 3 equivalent but output vector has bits set when expecting don't care :",
+            "[OUTPUT_BLIF] Vector 34 mismatch:",
+            "[OUTPUT_BLIF] Vector 35 mismatch:",
+            "[OUTPUT_BLIF] Vector 38 mismatch:",
+            "[OUTPUT_BLIF] Vector 39 mismatch:"
         ]
     },
     "DEFAULT": {
         "test_name": "n/a",
         "architecture": "n/a",
-        "generated_blif": "n/a",
+        "blif": "n/a",
         "exit": 0,
         "leaks": 0,
         "errors": [],

@@ -1,5 +1,4 @@
 #include "partition.h"
-#include "partition_region.h"
 #include <algorithm>
 #include <vector>
 
@@ -17,13 +16,4 @@ const PartitionRegion Partition::get_part_region() {
 
 void Partition::set_part_region(PartitionRegion pr) {
     part_region = pr;
-}
-
-void print_partition(FILE* fp, Partition part) {
-    std::string name = part.get_name();
-    fprintf(fp, "partition_name: %s\n", name.c_str());
-
-    PartitionRegion pr = part.get_part_region();
-
-    print_partition_region(fp, pr);
 }

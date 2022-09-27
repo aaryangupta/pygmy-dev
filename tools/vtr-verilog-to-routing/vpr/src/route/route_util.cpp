@@ -5,7 +5,6 @@ vtr::Matrix<float> calculate_routing_usage(t_rr_type rr_type) {
     VTR_ASSERT(rr_type == CHANX || rr_type == CHANY);
 
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     auto& cluster_ctx = g_vpr_ctx.clustering();
     auto& route_ctx = g_vpr_ctx.routing();
 
@@ -18,7 +17,7 @@ vtr::Matrix<float> calculate_routing_usage(t_rr_type rr_type) {
         while (tptr != nullptr) {
             int inode = tptr->index;
 
-            if (rr_graph.node_type(RRNodeId(inode)) == rr_type) {
+            if (device_ctx.rr_nodes[inode].type() == rr_type) {
                 rr_nodes.insert(inode);
             }
             tptr = tptr->next;
@@ -27,23 +26,23 @@ vtr::Matrix<float> calculate_routing_usage(t_rr_type rr_type) {
 
     //Record number of used resources in each x/y channel
     for (int inode : rr_nodes) {
-        RRNodeId rr_node = RRNodeId(inode);
+        auto& rr_node = device_ctx.rr_nodes[inode];
 
         if (rr_type == CHANX) {
-            VTR_ASSERT(rr_graph.node_type(rr_node) == CHANX);
-            VTR_ASSERT(rr_graph.node_ylow(rr_node) == rr_graph.node_yhigh(rr_node));
+            VTR_ASSERT(rr_node.type() == CHANX);
+            VTR_ASSERT(rr_node.ylow() == rr_node.yhigh());
 
-            int y = rr_graph.node_ylow(rr_node);
-            for (int x = rr_graph.node_xlow(rr_node); x <= rr_graph.node_xhigh(rr_node); ++x) {
+            int y = rr_node.ylow();
+            for (int x = rr_node.xlow(); x <= rr_node.xhigh(); ++x) {
                 usage[x][y] += route_ctx.rr_node_route_inf[inode].occ();
             }
         } else {
             VTR_ASSERT(rr_type == CHANY);
-            VTR_ASSERT(rr_graph.node_type(rr_node) == CHANY);
-            VTR_ASSERT(rr_graph.node_xlow(rr_node) == rr_graph.node_xhigh(rr_node));
+            VTR_ASSERT(rr_node.type() == CHANY);
+            VTR_ASSERT(rr_node.xlow() == rr_node.xhigh());
 
-            int x = rr_graph.node_xlow(rr_node);
-            for (int y = rr_graph.node_ylow(rr_node); y <= rr_graph.node_yhigh(rr_node); ++y) {
+            int x = rr_node.xlow();
+            for (int y = rr_node.ylow(); y <= rr_node.yhigh(); ++y) {
                 usage[x][y] += route_ctx.rr_node_route_inf[inode].occ();
             }
         }
@@ -56,27 +55,26 @@ vtr::Matrix<float> calculate_routing_avail(t_rr_type rr_type) {
     VTR_ASSERT(rr_type == CHANX || rr_type == CHANY);
 
     auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
 
     vtr::Matrix<float> avail({{device_ctx.grid.width(), device_ctx.grid.height()}}, 0.);
-    for (const RRNodeId& rr_node : rr_graph.nodes()) {
-        const short& rr_node_capacity = rr_graph.node_capacity(rr_node);
+    for (size_t inode = 0; inode < device_ctx.rr_nodes.size(); ++inode) {
+        auto& rr_node = device_ctx.rr_nodes[inode];
 
-        if (rr_graph.node_type(rr_node) == CHANX && rr_type == CHANX) {
-            VTR_ASSERT(rr_graph.node_type(rr_node) == CHANX);
-            VTR_ASSERT(rr_graph.node_ylow(rr_node) == rr_graph.node_yhigh(rr_node));
+        if (rr_node.type() == CHANX && rr_type == CHANX) {
+            VTR_ASSERT(rr_node.type() == CHANX);
+            VTR_ASSERT(rr_node.ylow() == rr_node.yhigh());
 
-            int y = rr_graph.node_ylow(rr_node);
-            for (int x = rr_graph.node_xlow(rr_node); x <= rr_graph.node_xhigh(rr_node); ++x) {
-                avail[x][y] += rr_node_capacity;
+            int y = rr_node.ylow();
+            for (int x = rr_node.xlow(); x <= rr_node.xhigh(); ++x) {
+                avail[x][y] += rr_node.capacity();
             }
-        } else if (rr_graph.node_type(rr_node) == CHANY && rr_type == CHANY) {
-            VTR_ASSERT(rr_graph.node_type(rr_node) == CHANY);
-            VTR_ASSERT(rr_graph.node_xlow(rr_node) == rr_graph.node_xhigh(rr_node));
+        } else if (rr_node.type() == CHANY && rr_type == CHANY) {
+            VTR_ASSERT(rr_node.type() == CHANY);
+            VTR_ASSERT(rr_node.xlow() == rr_node.xhigh());
 
-            int x = rr_graph.node_xlow(rr_node);
-            for (int y = rr_graph.node_ylow(rr_node); y <= rr_graph.node_yhigh(rr_node); ++y) {
-                avail[x][y] += rr_node_capacity;
+            int x = rr_node.xlow();
+            for (int y = rr_node.ylow(); y <= rr_node.yhigh(); ++y) {
+                avail[x][y] += rr_node.capacity();
             }
         }
     }

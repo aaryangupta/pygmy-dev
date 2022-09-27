@@ -19,7 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// This file defines a notion of tuples that is simpler than `std::tuple`.  It works as follows:
+// This file defines a notion of tuples that is simpler that `std::tuple`.  It works as follows:
 // - `kj::Tuple<A, B, C> is the type of a tuple of an A, a B, and a C.
 // - `kj::tuple(a, b, c)` returns a tuple containing a, b, and c.  If any of these are themselves
 //   tuples, they are flattened, so `tuple(a, tuple(b, c), d)` is equivalent to `tuple(a, b, c, d)`.
@@ -37,9 +37,11 @@
 
 #pragma once
 
-#include "common.h"
+#if defined(__GNUC__) && !KJ_HEADER_WARNINGS
+#pragma GCC system_header
+#endif
 
-KJ_BEGIN_HEADER
+#include "common.h"
 
 namespace kj {
 namespace _ {  // private
@@ -91,7 +93,7 @@ struct TupleElement {
   // from a TupleElement for each element, which is more efficient than a recursive definition.
 
   T value;
-  TupleElement() = default;
+  TupleElement() KJ_DEFAULT_CONSTRUCTOR_VS2015_BUGGY
   constexpr inline TupleElement(const T& value): value(value) {}
   constexpr inline TupleElement(T&& value): value(kj::mv(value)) {}
 };
@@ -121,7 +123,7 @@ struct TupleImpl<Indexes<indexes...>, Types...>
 
   static_assert(sizeof...(indexes) == sizeof...(Types), "Incorrect use of TupleImpl.");
 
-  TupleImpl() = default;
+  TupleImpl() KJ_DEFAULT_CONSTRUCTOR_VS2015_BUGGY
 
   template <typename... Params>
   inline TupleImpl(Params&&... params)
@@ -151,7 +153,7 @@ class Tuple {
   // The actual Tuple class (used for tuples of size other than 1).
 
 public:
-  Tuple() = default;
+  Tuple() KJ_DEFAULT_CONSTRUCTOR_VS2015_BUGGY
 
   template <typename... U>
   constexpr inline Tuple(Tuple<U...>&& other): impl(kj::mv(other)) {}
@@ -439,5 +441,3 @@ template <size_t i, typename Tuple>
 using TypeOfIndex = typename TypeOfIndex_<i, Tuple>::Type;
 
 }  // namespace kj
-
-KJ_END_HEADER

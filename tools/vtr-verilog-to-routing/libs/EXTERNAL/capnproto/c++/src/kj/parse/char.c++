@@ -61,8 +61,7 @@ double ParseFloat::operator()(const Array<char>& digits,
   *pos++ = '\0';
   KJ_DASSERT(pos == buf.end());
 
-  // The above construction should always produce a valid double, so this should never throw...
-  return StringPtr(buf.begin(), bufSize).parseAs<double>();
+  return strtod(buf.begin(), nullptr);
 }
 
 }  // namespace _ (private)

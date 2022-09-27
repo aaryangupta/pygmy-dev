@@ -84,10 +84,6 @@
   #endif
 #endif
 
-#ifdef __APPLE__
-  #define ABC_USE_STDINT_H
-#endif
-
 #include "abc_namespaces.h"
 
 ////////////////////////////////////////////////////////////////////////

@@ -7,7 +7,6 @@
 #include "place_util.h"
 #include "globals.h"
 #include "draw_global.h"
-#include "place_constraints.h"
 
 /* File-scope routines */
 static vtr::Matrix<t_grid_blocks> init_grid_blocks();
@@ -333,50 +332,6 @@ double get_std_dev(int n, double sum_x_squared, double av_x) {
     return (std_dev > 0.) ? sqrt(std_dev) : 0.;
 }
 
-void load_grid_blocks_from_block_locs() {
-    auto& cluster_ctx = g_vpr_ctx.clustering();
-    auto& place_ctx = g_vpr_ctx.mutable_placement();
-    auto& device_ctx = g_vpr_ctx.device();
-
-    zero_initialize_grid_blocks();
-
-    auto blocks = cluster_ctx.clb_nlist.blocks();
-    for (auto blk_id : blocks) {
-        t_pl_loc location;
-        location = place_ctx.block_locs[blk_id].loc;
-
-        VTR_ASSERT(location.x < (int)device_ctx.grid.width());
-        VTR_ASSERT(location.y < (int)device_ctx.grid.height());
-
-        place_ctx.grid_blocks[location.x][location.y].blocks[location.sub_tile] = blk_id;
-        place_ctx.grid_blocks[location.x][location.y].usage++;
-    }
-}
-
-void zero_initialize_grid_blocks() {
-    auto& device_ctx = g_vpr_ctx.device();
-    auto& place_ctx = g_vpr_ctx.mutable_placement();
-
-    /* Initialize all occupancy to zero. */
-
-    for (size_t i = 0; i < device_ctx.grid.width(); i++) {
-        for (size_t j = 0; j < device_ctx.grid.height(); j++) {
-            place_ctx.grid_blocks[i][j].usage = 0;
-            auto tile = device_ctx.grid[i][j].type;
-
-            for (auto sub_tile : tile->sub_tiles) {
-                auto capacity = sub_tile.capacity;
-
-                for (int k = 0; k < capacity.total(); k++) {
-                    if (place_ctx.grid_blocks[i][j].blocks[k + capacity.low] != INVALID_BLOCK_ID) {
-                        place_ctx.grid_blocks[i][j].blocks[k + capacity.low] = EMPTY_BLOCK_ID;
-                    }
-                }
-            }
-        }
-    }
-}
-
 /**
  * @brief Builds (alloc and load) legal_pos that holds all the legal locations for placement
  *
@@ -427,107 +382,4 @@ void alloc_and_load_legal_placement_locations(std::vector<std::vector<std::vecto
     }
     //avoid any memory waste
     legal_pos.shrink_to_fit();
-}
-
-void set_block_location(ClusterBlockId blk_id, const t_pl_loc& location) {
-    auto& place_ctx = g_vpr_ctx.mutable_placement();
-    auto& device_ctx = g_vpr_ctx.device();
-    auto& cluster_ctx = g_vpr_ctx.clustering();
-
-    const std::string& block_name = cluster_ctx.clb_nlist.block_name(blk_id);
-
-    //Check if block location is out of range of grid dimensions
-    if (location.x < 0 || location.x > int(device_ctx.grid.width() - 1)
-        || location.y < 0 || location.y > int(device_ctx.grid.height() - 1)) {
-        VPR_THROW(VPR_ERROR_PLACE, "Block %s with ID %d is out of range at location (%d, %d). \n", block_name.c_str(), blk_id, location.x, location.y);
-    }
-
-    //Set the location of the block
-    place_ctx.block_locs[blk_id].loc.x = location.x;
-    place_ctx.block_locs[blk_id].loc.y = location.y;
-    place_ctx.block_locs[blk_id].loc.sub_tile = location.sub_tile;
-
-    //Check if block is at an illegal location
-    auto physical_tile = device_ctx.grid[location.x][location.y].type;
-    auto logical_block = cluster_ctx.clb_nlist.block_type(blk_id);
-
-    if (location.sub_tile >= physical_tile->capacity || location.sub_tile < 0) {
-        VPR_THROW(VPR_ERROR_PLACE, "Block %s subtile number (%d) is out of range. \n", block_name.c_str(), location.sub_tile);
-    }
-
-    if (!is_sub_tile_compatible(physical_tile, logical_block, place_ctx.block_locs[blk_id].loc.sub_tile)) {
-        VPR_THROW(VPR_ERROR_PLACE, "Attempt to place block %s with ID %d at illegal location (%d, %d). \n", block_name.c_str(), blk_id, location.x, location.y);
-    }
-
-    //Mark the grid location and usage of the block
-    place_ctx.grid_blocks[location.x][location.y].blocks[location.sub_tile] = blk_id;
-    place_ctx.grid_blocks[location.x][location.y].usage++;
-}
-
-bool macro_can_be_placed(t_pl_macro pl_macro, t_pl_loc head_pos, bool check_all_legality) {
-    auto& device_ctx = g_vpr_ctx.device();
-    auto& place_ctx = g_vpr_ctx.placement();
-    auto& cluster_ctx = g_vpr_ctx.clustering();
-
-    //Get block type of head member
-    ClusterBlockId blk_id = pl_macro.members[0].blk_index;
-    auto block_type = cluster_ctx.clb_nlist.block_type(blk_id);
-
-    // Every macro can be placed until proven otherwise
-    bool mac_can_be_placed = true;
-
-    // Check whether all the members can be placed
-    for (size_t imember = 0; imember < pl_macro.members.size(); imember++) {
-        t_pl_loc member_pos = head_pos + pl_macro.members[imember].offset;
-
-        //Check that the member location is on the grid
-        if (!is_loc_on_chip(member_pos.x, member_pos.y)) {
-            mac_can_be_placed = false;
-            break;
-        }
-
-        /*
-         * analytical placement approach do not need to make sure whether location could accommodate more blocks
-         * since overused locations will be spreaded by legalizer afterward.
-         * floorplan constraint is not supported by analytical placement yet, 
-         * hence, if macro_can_be_placed is called from analytical placer, no further actions are required. 
-         */
-        if (check_all_legality) {
-            continue;
-        }
-
-        //Check whether macro contains blocks with floorplan constraints
-        bool macro_constrained = is_macro_constrained(pl_macro);
-
-        /*
-         * If the macro is constrained, check that the head member is in a legal position from
-         * a floorplanning perspective. It is enough to do this check for the head member alone,
-         * because constraints propagation was performed to calculate smallest floorplan region for the head
-         * macro, based on the constraints on all of the blocks in the macro. So, if the head macro is in a
-         * legal floorplan location, all other blocks in the macro will be as well.
-         */
-        if (macro_constrained && imember == 0) {
-            bool member_loc_good = cluster_floorplanning_legal(pl_macro.members[imember].blk_index, member_pos);
-            if (!member_loc_good) {
-                mac_can_be_placed = false;
-                break;
-            }
-        }
-
-        // Check whether the location could accept block of this type
-        // Then check whether the location could still accommodate more blocks
-        // Also check whether the member position is valid, and the member_z is allowed at that location on the grid
-        if (member_pos.x < int(device_ctx.grid.width()) && member_pos.y < int(device_ctx.grid.height())
-            && is_tile_compatible(device_ctx.grid[member_pos.x][member_pos.y].type, block_type)
-            && place_ctx.grid_blocks[member_pos.x][member_pos.y].blocks[member_pos.sub_tile] == EMPTY_BLOCK_ID) {
-            // Can still accommodate blocks here, check the next position
-            continue;
-        } else {
-            // Cant be placed here - skip to the next try
-            mac_can_be_placed = false;
-            break;
-        }
-    }
-
-    return (mac_can_be_placed);
 }

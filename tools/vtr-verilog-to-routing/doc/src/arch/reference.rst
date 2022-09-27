@@ -378,7 +378,7 @@ Grid Location Tags
 
         **Default:** ``0``
 
-    :opt_param incrx:
+    :opt_param incry:
         An expression specifying the horizontal increment between block instantiations within the region.
 
         **Default:** ``w``
@@ -442,7 +442,7 @@ Grid Location Tags
         An expression specifying the vertical repeat factor of the column.
 
     :opt_param incry:
-        An expression specifying the vertical increment between block instantiations within the region.
+        An expression specifying the horizontal increment between block instantiations within the region.
 
         **Default:** ``h``
 
@@ -754,7 +754,7 @@ Global Routing Information
 If global routing is to be performed, channels in different directions and in different parts of the FPGA can be set to different relative widths.
 This is specified in the content within the ``<chan_width_distr>`` tag.
 
-.. note:: If detailed routing is to be performed, only uniform distributions may be used
+.. note:: If detailed routing is to be performed, all the channels in the FPGA must have the same width.
 
 .. arch:tag:: <x distr="{gaussian|uniform|pulse|delta}" peak="float" width=" float" xpeak=" float" dc=" float"/>
 
@@ -965,7 +965,7 @@ The following tags are common to all ``<tile>`` tags:
                 Desctibes the mapping of a physical tile's port on the logical block's (pb_type) port.
                 ``direct`` is an option sub-tag of ``site``.
 
-                .. note:: This tag is needed only if the pin_mapping of the ``site`` is defined as ``custom``
+                .. note:: This tag is need only if the pin_mapping of the ``site`` is defined as ``custom``
 
                 Attributes:
                     - ``from`` is relative to the physical tile pins
@@ -1826,16 +1826,7 @@ Wire Segments
 The content within the ``<segmentlist>`` tag consists of a group of ``<segment>`` tags.
 The ``<segment>`` tag and its contents are described below.
 
-.. arch:tag:: <segment axis="{x|y}" name="unique_name" length="int" type="{bidir|unidir}" freq="float" Rmetal="float" Cmetal="float">content</segment>
-
-
-    :opt_param axis:
-        Specifies if the given segment applies to either x or y channels only. If this tag is not given, it is assumed that the given segment
-        description applies to both x-directed and y-directed channels.
-
-        .. note:: It is required that both x and y segment axis details are given or that at least one segment within ``segmentlist`` 
-            is specified without the ``axis`` tag (i.e. at least one segment applies to both x-directed and y-directed 
-            chanels). 
+.. arch:tag:: <segment name="unique_name" length="int" type="{bidir|unidir}" freq="float" Rmetal="float" Cmetal="float">content</segment>
 
     :req_param name:
         A unique alphanumeric name to identify this segment type.
@@ -2301,7 +2292,7 @@ The full format is documented below.
     Defined under the ``<switchfuncs>`` XML node, one or more ``<func...>`` entries is used to specify permutation functions that connect different sides of a switch block.
 
 
-.. arch:tag:: <wireconn num_conns="expr" from_type="string, string, string, ..." to_type="string, string, string, ..." from_switchpoint="int, int, int, ..." to_switchpoint="int, int, int, ..." from_order="{fixed | shuffled}" to_order="{fixed | shuffled}" switch_override="string"/>
+.. arch:tag:: <wireconn num_conns="expr" from_type="string, string, string, ..." to_type="string, string, string, ..." from_switchpoint="int, int, int, ..." to_switchpoint="int, int, int, ..." from_order="{fixed | shuffled}" to_order="{fixed | shuffled}"/>
 
     :req_param num_conns:
         Specifies how many connections should be created between the from_type/from_switchpoint set and the to_type/to_switchpoint set.
@@ -2400,14 +2391,6 @@ The full format is documented below.
         Specifies the order in which ``to_switchpoint``s are selected when creating edges.
 
         .. note:: See ``from_switchpoint_order`` for value descritpions.
-
-    :opt_param switch_override:
-
-        Specifies the name of a switch to be used to override the wire_switch of the segments in the ``to`` set. 
-        Can be used to create switch patterns where different switches are used for different types of connections. 
-        By using a zero-delay and zero-resistance switch one can also create T and L shaped wire segments.
-        
-        **Default:** If no override is specified, the usual wire_switch that drives the ``to`` wire will be used. 
 
     .. arch:tag:: <from type="string" switchpoint="int, int, int, ..."/>
 

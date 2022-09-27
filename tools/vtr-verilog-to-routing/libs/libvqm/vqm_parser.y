@@ -21,9 +21,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 //#include <crtdbg.h>
-#ifndef __APPLE__
 #include <malloc.h>
-#endif
 #include <string.h>
 #include <assert.h>
 #include "vqm_dll.h"
@@ -86,7 +84,7 @@ modules:	/* Empty */ {}
 			|	modules module {}
 			;
 
-module:		header body footer
+module:		header declarations statements footer
 			{
                 if(parse_info->pass_type == COUNT_PASS) {
                     parse_info->number_of_modules++;
@@ -128,16 +126,10 @@ header:		TOKEN_MODULE TOKEN_REGULARID '(' IdentifierList ')' ';'
 			}
 			;
 
-body:           /* Empty */ {}
-			|	body declaration_statement {} /* the body consists of a mix of declarations and statements */
+
+declarations:	/* Empty */ {}
+			|	declarations declaration {}
 			;
-
-
-declaration_statement:	        declaration
-			|
-                                statement  
-			;
-
 
 declaration:	PinType IdentifierList ';'
 				{
@@ -166,7 +158,9 @@ declaration:	PinType IdentifierList ';'
 footer:		TOKEN_ENDMODULE	{}
 			;
 
-
+statements:	/* Empty */ {}
+			| statements statement {}
+			;
 
 statement:		AssignStatement {}
 			|	TriStatement {}
@@ -679,16 +673,7 @@ IdentifierList:		Identifier
 					}
 				;
 
-Identifier:	TOKEN_ESCAPEDID '[' TOKEN_INTCONSTANT ']'
-				{
-                    if(parse_info->pass_type == COUNT_PASS) {
-                        //pass
-                    } else {
-                        /* Allocate space for an identifier. Specify index used */
-                        $$ = (uintptr_t) allocate_identifier($1, T_TRUE, $3);
-                    }
-				}
-			|	TOKEN_ESCAPEDID
+Identifier:		TOKEN_ESCAPEDID
 				{
                     if(parse_info->pass_type == COUNT_PASS) {
                         //pass

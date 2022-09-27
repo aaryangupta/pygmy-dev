@@ -36,7 +36,6 @@
 
 #include "odin_util.h"
 #include "vtr_util.h"
-#include "vtr_path.h"
 #include "vtr_memory.h"
 #include <regex>
 #include <stdbool.h>
@@ -44,10 +43,8 @@
 // for mkdir
 #ifdef WIN32
 #    include <direct.h>
-#    define getcwd _getcwd
 #else
 #    include <sys/stat.h>
-#    include <unistd.h>
 #endif
 
 long shift_left_value_with_overflow_check(long input_value, long shift_by, loc_t loc) {
@@ -68,15 +65,6 @@ std::string get_file_extension(std::string input_file) {
     }
 }
 
-std::string get_directory(std::string input_file) {
-    auto last_slash_location = input_file.find_last_of("\\/");
-    if (last_slash_location != std::string::npos) {
-        return input_file.substr(0, last_slash_location);
-    } else {
-        return "";
-    }
-}
-
 void create_directory(std::string path) {
     // CREATE OUTPUT DIRECTORY
     int error_code = 0;
@@ -91,75 +79,24 @@ void create_directory(std::string path) {
     }
 }
 
-/**
- * @brief report the frontend elaborator and its parser
- */
-void report_frontend_elaborator() {
-    // Check if the file_name extension matches with type
-    switch (configuration.input_file_type) {
-        case (file_type_e::_VERILOG): // fallthrough
-        case (file_type_e::_VERILOG_HEADER): {
-            if (configuration.elaborator_type == elaborator_e::_ODIN) {
-                printf("Using the ODIN_II parser for elaboration\n");
-            } else if (configuration.elaborator_type == elaborator_e::_YOSYS) {
-                printf("Using the Yosys elaborator with it's conventional Verilog/SystemVerilog parser\n");
-            }
-            break;
-        }
-        case (file_type_e::_SYSTEM_VERILOG): {
-            if (configuration.elaborator_type != elaborator_e::_YOSYS) {
-                error_message(PARSE_ARGS, unknown_location, "%s", SYSTEMVERILOG_PARSER_ERROR);
-            }
-#ifndef YOSYS_SV_UHDM_PLUGIN
-            printf("Using the Yosys elaborator with it's conventional Verilog/SystemVerilog parser\n");
-#else
-            printf("Using the Yosys elaborator with the Yosys-F4PGA-Plugin parser for SystemVerilog\n");
-#endif
-            break;
-        }
-        case (file_type_e::_UHDM): {
-            if (configuration.elaborator_type != elaborator_e::_YOSYS) {
-                error_message(PARSE_ARGS, unknown_location, "%s", UHDM_PARSER_ERROR);
-
-            } else if (configuration.elaborator_type == elaborator_e::_YOSYS) {
-#ifndef ODIN_USE_YOSYS
-                error_message(PARSE_ARGS, unknown_location, "%s", YOSYS_INSTALLATION_ERROR);
-#else
-#    ifndef YOSYS_SV_UHDM_PLUGIN
-                error_message(PARSE_ARGS, unknown_location, "%s", YOSYS_PLUGINS_NOT_COMPILED);
-#    endif
-#endif
-            }
-            printf("Using the Yosys elaborator with the Surelog parser for UHDM\n");
-            break;
-        }
-        case (file_type_e::_BLIF): {
-            printf("Using the ODIN_II BLIF parser\n");
-            break;
-        }
-        case (file_type_e::_EBLIF): //fallthrough
-        case (file_type_e::_ILANG): //fallthrough
-        default: {
-            error_message(UTIL, unknown_location, "%s", "Invalid file type");
-            break;
-        }
-    }
-}
-
 void assert_supported_file_extension(std::string input_file, loc_t loc) {
-    bool supported = (file_extension_strmap.find(string_to_lower(get_file_extension(input_file))) != file_extension_strmap.end());
+    bool supported = false;
+    std::string extension = get_file_extension(input_file);
+    for (int i = 0; i < file_extension_supported_END && !supported; i++) {
+        supported = (extension == std::string(file_extension_supported_STR[i]));
+    }
 
     if (!supported) {
         std::string supported_extension_list = "";
-        for (auto iter : file_extension_strmap) {
+        for (int i = 0; i < file_extension_supported_END; i++) {
             supported_extension_list += " ";
-            supported_extension_list += iter.first;
+            supported_extension_list += file_extension_supported_STR[i];
         }
 
         possible_error_message(UTIL, loc,
                                "File (%s) has an unsupported extension (%s), Odin only supports { %s }",
                                input_file.c_str(),
-                               get_file_extension(input_file).c_str(),
+                               extension.c_str(),
                                supported_extension_list.c_str());
     }
 }
@@ -170,20 +107,6 @@ FILE* open_file(const char* file_name, const char* open_type) {
         error_message(UTIL, unknown_location, "cannot open file: %s\n", file_name);
     }
     return opened_file;
-}
-
-/**
- * (function: get_current_path)
- *
- * @brief find the path where Odin-II is running
- */
-void get_current_path() {
-    /* create a string buffer to hold path */
-    char* buffer;
-    buffer = getcwd(NULL, READ_BUFFER_SIZE);
-
-    global_args.current_path = std::string(buffer);
-    vtr::free(buffer);
 }
 
 /*---------------------------------------------------------------------------------------------
@@ -658,102 +581,6 @@ char* get_port_name(char* name) {
     return port_name;
 }
 
-/**
- * (function: get_node_name)
- * 
- * @brief Removing the hard block unique number from its name 
- * and gets the node name (everything before the ~).
- *  
- * @param name the given hard block name
- * 
- * @return pure hard block name
- */
-char* get_hard_block_node_name(char* name) {
-    char* port_name = vtr::strdup(name);
-    // Find out if there is a ~ and remove everything after it.
-    char* tilde = strchr(port_name, '~');
-    if (tilde)
-        *tilde = '\0';
-    return (port_name);
-}
-
-/**
- *---------------------------------------------------------------------------------------------
- * (function: get_stripped_name)
- * 
- * @brief find the sub-circuit name in an altered sub-circuit name
- * In yosys cases, it appears when there is an instantiated parameterized 
- * module, so Yosys changes the name to avoid name collision. For Odin-II,
- * it looks for the pattern specified as names of supported hard blocks, 
- * such as mult_XXX
- * 
- * @param subcircuit_name complete name
- * 
- * @return a stripped name
- * -------------------------------------------------------------------------------------------
- */
-char* get_stripped_name(const char* subcircuit_name) {
-    /* validation */
-    oassert(subcircuit_name);
-
-    char* subcircuit_stripped_name = NULL;
-
-    /* looking for Yosys style generated RTLIL module name */
-    if (configuration.coarsen) {
-        const char* pos = strchr(subcircuit_name, '\\');
-        if (pos) {
-            const char* end = strchr(pos, '\0');
-            // get stripped name
-            if (end) {
-                subcircuit_stripped_name = (char*)vtr::malloc((end - pos + 1) * sizeof(char));
-                memcpy(subcircuit_stripped_name, pos + 1, end - pos - 1);
-                subcircuit_stripped_name[end - pos - 1] = '\0';
-            }
-        }
-    }
-    /* looking for Odin-II style subckt types */
-    else {
-        /* init sub-circuit */
-        subcircuit_stripped_name = (char*)vtr::calloc(6, sizeof(char));
-        /* Determine the type of hard block. */
-        memcpy(subcircuit_stripped_name, subcircuit_name, 5);
-        subcircuit_stripped_name[5] = '\0';
-    }
-
-    if (subcircuit_stripped_name == NULL)
-        return (vtr::strdup(subcircuit_name));
-
-    return (subcircuit_stripped_name);
-}
-
-/**
- *---------------------------------------------------------------------------------------------
- * (function: retrieve_node_type_from_subckt_name)
- * 
- * @brief to retrieve the actual node type from the subcircuit name 
- * in cases where yosys generates a weird name, which includes port 
- * widths and additional information in a subcircuit name 
- * 
- * @param stripped_name subcircuit irregular name
- * 
- * @return the actual subcircuit name if it was successfully 
- * retrieved, otherwise NULL pointer
- * -------------------------------------------------------------------------------------------
- */
-char* retrieve_node_type_from_subckt_name(const char* subcircuit_name) {
-    /* validation */
-    oassert(subcircuit_name);
-
-    /* looking for Yosys style generated RTLIL module name */
-    if (true) {
-        for (auto pair : yosys_subckt_strmap)
-            if (std::string(subcircuit_name).find(pair.first, 0) != std::string::npos)
-                return vtr::strdup(pair.first.c_str());
-    }
-
-    return (NULL);
-}
-
 /*
  * Gets the pin number (the number after the ~)
  * from the given name.
@@ -855,53 +682,25 @@ long int pow2(int to_the_power) {
 /*
  * Changes the given string to upper case.
  */
-char* string_to_upper(char* string) {
+void string_to_upper(char* string) {
     if (string) {
         unsigned int i;
         for (i = 0; i < strlen(string); i++) {
             string[i] = toupper(string[i]);
         }
     }
-    return (string);
 }
 
 /*
  * Changes the given string to lower case.
  */
-char* string_to_lower(char* string) {
+void string_to_lower(char* string) {
     if (string) {
         unsigned int i;
         for (i = 0; i < strlen(string); i++) {
             string[i] = tolower(string[i]);
         }
     }
-    return (string);
-}
-
-/**
- * @brief create a new string by transforming the given string to upper case
- * 
- * @param string to be transformed string
- * 
- * @return the transformed string in a new container
- */
-std::string string_to_upper(std::string string) {
-    if (!string.empty())
-        std::transform(string.begin(), string.end(), string.begin(), ::toupper);
-    return (string);
-}
-
-/**
- * @brief create a new string by transforming the given string to lower case
- * 
- * @param string to be transformed string
- * 
- * @return the transformed string in a new container
- */
-std::string string_to_lower(std::string string) {
-    if (!string.empty())
-        std::transform(string.begin(), string.end(), string.begin(), ::tolower);
-    return (string);
 }
 
 /*
@@ -1233,43 +1032,4 @@ char* str_collate(char* str1, char* str2) {
         vtr::free(str2);
     }
     return buffer;
-}
-
-/**
- * (function: print_input_files_info)
- * 
- * @brief This shows the name of input files
- */
-void print_input_files_info() {
-    switch (configuration.input_file_type) {
-        case (file_type_e::_ILANG):          // fallthrough
-        case (file_type_e::_VERILOG):        // fallthrough
-        case (file_type_e::_VERILOG_HEADER): //fallthrough
-        case (file_type_e::_SYSTEM_VERILOG): //fallthorugh
-        case (file_type_e::_UHDM): {
-            for (std::string v_file : global_args.input_files.value())
-                printf("Input %s file: %s\n", file_type_strmap[configuration.input_file_type].c_str(), vtr::basename(v_file).c_str());
-            break;
-        }
-        case (file_type_e::_EBLIF): //fallthrough
-        case (file_type_e::_BLIF): {
-            printf("Input BLIF file: %s\n", vtr::basename(global_args.blif_file.value()).c_str());
-            break;
-        }
-        default: {
-            // Invalid file type, should have been already checked in the beginning of Odin-II
-            std::string supported_extension_list = "";
-            for (auto iter : file_extension_strmap) {
-                supported_extension_list += " ";
-                supported_extension_list += iter.first;
-            }
-
-            possible_error_message(UTIL, unknown_location,
-                                   "Invalid input file extension, Odin only supports { %s }",
-                                   supported_extension_list.c_str());
-            break;
-        }
-    }
-
-    fflush(stdout);
 }

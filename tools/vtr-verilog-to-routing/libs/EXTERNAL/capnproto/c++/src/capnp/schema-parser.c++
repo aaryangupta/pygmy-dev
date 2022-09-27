@@ -287,7 +287,7 @@ void SchemaParser::setDiskFilesystem(kj::Filesystem& fs) {
 
 ParsedSchema SchemaParser::parseFile(kj::Own<SchemaFile>&& file) const {
   KJ_DEFER(impl->compiler.clearWorkspace());
-  uint64_t id = impl->compiler.add(getModuleImpl(kj::mv(file))).getId();
+  uint64_t id = impl->compiler.add(getModuleImpl(kj::mv(file)));
   impl->compiler.eagerlyCompile(id,
       compiler::Compiler::NODE | compiler::Compiler::CHILDREN |
       compiler::Compiler::DEPENDENCIES | compiler::Compiler::DEPENDENCY_DEPENDENCIES);
@@ -314,9 +314,6 @@ SchemaLoader& SchemaParser::getLoader() {
 }
 
 kj::Maybe<ParsedSchema> ParsedSchema::findNested(kj::StringPtr name) const {
-  // TODO(someday): lookup() doesn't handle generics correctly. Use the ModuleScope/CompiledType
-  //   interface instead. We can also add an applybrand() method to ParsedSchema using those
-  //   interfaces, which would allow us to expose generics more explicitly to e.g. Python.
   return parser->impl->compiler.lookup(getProto().getId(), name).map(
       [this](uint64_t childId) {
         return ParsedSchema(parser->impl->compiler.getLoader().get(childId), *parser);
@@ -331,20 +328,8 @@ ParsedSchema ParsedSchema::getNested(kj::StringPtr nestedName) const {
   }
 }
 
-ParsedSchema::ParsedSchemaList ParsedSchema::getAllNested() const {
-  return ParsedSchemaList(*this, getProto().getNestedNodes());
-}
-
 schema::Node::SourceInfo::Reader ParsedSchema::getSourceInfo() const {
   return KJ_ASSERT_NONNULL(parser->getSourceInfo(*this));
-}
-
-// -------------------------------------------------------------------
-
-ParsedSchema ParsedSchema::ParsedSchemaList::operator[](uint index) const {
-  return ParsedSchema(
-    parent.parser->impl->compiler.getLoader().get(list[index].getId()),
-    *parent.parser);
 }
 
 // -------------------------------------------------------------------

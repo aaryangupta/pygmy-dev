@@ -21,9 +21,11 @@
 
 #pragma once
 
-#include "layout.h"
+#if defined(__GNUC__) && !defined(CAPNP_HEADER_WARNINGS)
+#pragma GCC system_header
+#endif
 
-CAPNP_BEGIN_HEADER
+#include "layout.h"
 
 namespace capnp {
 
@@ -433,5 +435,3 @@ inline Orphan<Data> Orphanage::referenceExternalData(Data::Reader data) const {
 }
 
 }  // namespace capnp
-
-CAPNP_END_HEADER

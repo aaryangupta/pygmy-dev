@@ -41,7 +41,6 @@ def drop_entries_on_failure(values):
                 "max_rss(MiB)",
                 "exec_time(ms)",
                 "synthesis_time(ms)",
-                "techmap_time(ms)",
                 "simulation_time(ms)",
                 "Latch Drivers",
                 "Pi",
@@ -65,7 +64,7 @@ def drop_entries_on_failure(values):
 
 def patch_logs(values):
     """
-    patch the string logs
+    patch the string logs 
     """
     sub_re = {
         # strip username from the logs

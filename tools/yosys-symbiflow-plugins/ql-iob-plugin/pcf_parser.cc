@@ -19,28 +19,31 @@
  */
 #include "pcf_parser.hh"
 
+#include <fstream>
 #include <regex>
 
 // ============================================================================
 
-bool PcfParser::parse(const std::string &a_FileName)
-{
+bool PcfParser::parse (const std::string& a_FileName) {
 
     // Open the file
-    std::ifstream file(a_FileName.c_str());
+    std::fstream file(a_FileName.c_str(), std::ifstream::in);
 
     // Parse it
-    return parse(file);
+    std::istream* stream = &file;
+    return parse(stream);
 }
 
-const std::vector<PcfParser::Constraint> PcfParser::getConstraints() const { return m_Constraints; }
+const std::vector<PcfParser::Constraint> PcfParser::getConstraints () const {
+    return m_Constraints;
+}
+
 
 // ============================================================================
 
-bool PcfParser::parse(std::ifstream &a_Stream)
-{
+bool PcfParser::parse (std::istream*& a_Stream) {
 
-    if (!a_Stream.good()) {
+    if (a_Stream == nullptr) {
         return false;
     }
 
@@ -50,14 +53,20 @@ bool PcfParser::parse(std::ifstream &a_Stream)
     // Parse PCF lines
     std::regex re("^\\s*set_io\\s+([^#\\s]+)\\s+([^#\\s]+)(?:\\s+#(.*))?");
 
-    while (a_Stream.good()) {
+    while (a_Stream->good()) {
         std::string line;
-        std::getline(a_Stream, line);
+        std::getline(*a_Stream, line);
 
         // Match against regex
         std::cmatch cm;
         if (std::regex_match(line.c_str(), cm, re)) {
-            m_Constraints.push_back(Constraint(cm[1].str(), cm[2].str(), cm[3].str()));
+            m_Constraints.push_back(
+                Constraint(
+                    cm[1].str(),
+                    cm[2].str(),
+                    cm[3].str()
+                )
+            );
         }
     }
 

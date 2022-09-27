@@ -183,11 +183,7 @@ class MixedContainer:
             showIndent(outfile, level)
             outfile.write(
                 'model_.MixedContainer(%d, %d, "%s",\n'
-                % (
-                    self.category,
-                    self.content_type,
-                    self.name,
-                )
+                % (self.category, self.content_type, self.name,)
             )
             self.value.exportLiteral(outfile, level + 1)
             showIndent(outfile, level)
@@ -283,14 +279,7 @@ class config(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="config", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="config")
         if self.hasContent_():
             outfile.write(">\n")
@@ -306,31 +295,19 @@ class config(GeneratedsSuper):
     def exportChildren(self, outfile, level, namespace_="", name_="config"):
         if self.verilog_files:
             self.verilog_files.export(
-                outfile,
-                level,
-                namespace_,
-                name_="verilog_files",
+                outfile, level, namespace_, name_="verilog_files",
             )
         if self.output:
             self.output.export(
-                outfile,
-                level,
-                namespace_,
-                name_="output",
+                outfile, level, namespace_, name_="output",
             )
         if self.optimizations:
             self.optimizations.export(
-                outfile,
-                level,
-                namespace_,
-                name_="optimizations",
+                outfile, level, namespace_, name_="optimizations",
             )
         if self.debug_outputs:
             self.debug_outputs.export(
-                outfile,
-                level,
-                namespace_,
-                name_="debug_outputs",
+                outfile, level, namespace_, name_="debug_outputs",
             )
 
     def hasContent_(self):
@@ -443,14 +420,7 @@ class verilog_files(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="verilog_files", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="verilog_files")
         if self.hasContent_():
             outfile.write(">\n")
@@ -561,14 +531,7 @@ class output(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="output", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="output")
         if self.hasContent_():
             outfile.write(">\n")
@@ -610,10 +573,7 @@ class output(GeneratedsSuper):
             )
         if self.target:
             self.target.export(
-                outfile,
-                level,
-                namespace_,
-                name_="target",
+                outfile, level, namespace_, name_="target",
             )
 
     def hasContent_(self):
@@ -707,14 +667,7 @@ class target(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="target", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="target")
         if self.hasContent_():
             outfile.write(">\n")
@@ -812,14 +765,7 @@ class optimizations(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="optimizations", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="optimizations")
         if self.hasContent_():
             outfile.write(">\n")
@@ -835,17 +781,11 @@ class optimizations(GeneratedsSuper):
     def exportChildren(self, outfile, level, namespace_="", name_="optimizations"):
         if self.multiply:
             self.multiply.export(
-                outfile,
-                level,
-                namespace_,
-                name_="multiply",
+                outfile, level, namespace_, name_="multiply",
             )
         if self.memory:
             self.memory.export(
-                outfile,
-                level,
-                namespace_,
-                name_="memory",
+                outfile, level, namespace_, name_="memory",
             )
 
     def hasContent_(self):
@@ -945,14 +885,7 @@ class multiply(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="multiply", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="multiply")
         if self.hasContent_():
             outfile.write(">")
@@ -1079,14 +1012,7 @@ class memory(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="memory", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="memory")
         if self.hasContent_():
             outfile.write(">")
@@ -1215,14 +1141,7 @@ class debug_outputs(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="debug_outputs", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="debug_outputs")
         if self.hasContent_():
             outfile.write(">\n")
@@ -1375,14 +1294,7 @@ class output_ast_graphs(GeneratedsSuper):
 
     def export(self, outfile, level, namespace_="", name_="output_ast_graphs", namespacedef_=""):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="output_ast_graphs")
         if self.hasContent_():
             outfile.write(">")
@@ -1468,14 +1380,7 @@ class output_netlist_graphs(GeneratedsSuper):
         self, outfile, level, namespace_="", name_="output_netlist_graphs", namespacedef_=""
     ):
         showIndent(outfile, level)
-        outfile.write(
-            "<%s%s%s"
-            % (
-                namespace_,
-                name_,
-                namespacedef_ and " " + namespacedef_ or "",
-            )
-        )
+        outfile.write("<%s%s%s" % (namespace_, name_, namespacedef_ and " " + namespacedef_ or "",))
         self.exportAttributes(outfile, level, namespace_, name_="output_netlist_graphs")
         if self.hasContent_():
             outfile.write(">")

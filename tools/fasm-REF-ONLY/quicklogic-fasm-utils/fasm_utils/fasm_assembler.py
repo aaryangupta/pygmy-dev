@@ -74,7 +74,7 @@ class FasmAssembler(object):
         '''
         assert coordinates is not None
 
-        if coordinates in self.configbits:
+        if coordinates in self.configbits and coordinates in self.configbitsline:
             if self.configbits[coordinates] != 1:
                 raise FasmInconsistentBits(
                     'FASM line "{}" wanted to set bit {} \
@@ -87,7 +87,8 @@ class FasmAssembler(object):
                 )
             return
         self.configbits[coordinates] = 1
-        self.configbitsline[coordinates] = fasmline
+        if fasmline is not None:
+            self.configbitsline[coordinates] = fasmline
         self._configuredbit = True
 
     def clear_config_bit(self, coordinates, fasmline):
@@ -110,7 +111,7 @@ class FasmAssembler(object):
         '''
         assert coordinates is not None
 
-        if coordinates in self.configbits:
+        if coordinates in self.configbits and coordinates in self.configbitsline:
             if self.configbits[coordinates] != 0:
                 raise FasmInconsistentBits(
                     'FASM line "{}" wanted to set bit {} \
@@ -123,7 +124,8 @@ class FasmAssembler(object):
                 )
             return
         self.configbits[coordinates] = 0
-        self.configbitsline[coordinates] = fasmline
+        if fasmline is not None:
+            self.configbitsline[coordinates] = fasmline
         self._configuredbit = True
 
     def enable_feature(self, line):

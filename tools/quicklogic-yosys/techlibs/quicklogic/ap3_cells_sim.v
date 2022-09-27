@@ -7,24 +7,19 @@ module LUT4(
    input I3
 );
     parameter [15:0] INIT = 16'h0;
-	parameter EQN = "(I0)";
+    parameter EQN = "(I0)";
     
-	wire [7:0] s3 = I3 ? INIT[15:8] : INIT[7:0];
-	wire [3:0] s2 = I2 ?       s3[ 7:4] :       s3[3:0];
-	wire [1:0] s1 = I1 ?       s2[ 3:2] :       s2[1:0];
-	assign O = I0 ? s1[1] : s1[0];
+    assign O = INIT[{I3, I2, I1, I0}];
 endmodule
 
 (* abc9_flop, lib_whitebox *)
-module FF(
+module ff(
     output reg CQZ,
     input D,
-    //(* clkbuf_sink *)
+    (* clkbuf_sink *)
     input QCK,
     input QEN,
-    //(* clkbuf_sink *)
     input QRT,
-    //(* clkbuf_sink *)
     input QST
 );
     parameter [0:0] INIT = 1'b0;
@@ -39,7 +34,7 @@ module FF(
             CQZ <= D;
 endmodule
 
-module FULL_ADDER(
+module full_adder(
    output S,
    output CO,
    input A,
@@ -60,7 +55,7 @@ module QL_CARRY(
 	assign CO = ((I0 ^ I1) & CI) | (~(I0 ^ I1) & (I0 & I1)); 
 endmodule
 
-module CK_BUFF ( 
+module ck_buff ( 
 	output Q,
     (* iopad_external_pin *)
 	input A
@@ -70,7 +65,7 @@ module CK_BUFF (
 
 endmodule /* ck buff */
 
-module IN_BUFF ( 
+module in_buff ( 
 	output Q,
     (* iopad_external_pin *)
 	input A
@@ -80,7 +75,7 @@ module IN_BUFF (
 
 endmodule /* in buff */
 
-module OUT_BUFF ( 
+module out_buff ( 
     (* iopad_external_pin *)
 	output Q,
 	input A
@@ -90,7 +85,7 @@ module OUT_BUFF (
 
 endmodule /* out buff */
 
-module D_BUFF ( 
+module d_buff ( 
     (* iopad_external_pin *)
 	output Q
 );
@@ -99,11 +94,10 @@ module D_BUFF (
 	
 endmodule /* d buff */
 
-module IN_REG (
+module in_reg (
 	output dataOut,
-	(* clkbuf_inhibit *) 
+    (* clkbuf_sink *)
 	input clk, 
-	(* iopad_external_pin *)
 	input rst, 
 	(* iopad_external_pin *)
 	input dataIn
@@ -135,12 +129,11 @@ module IN_REG (
 
 endmodule /* in_reg*/
 
-module OUT_REG (
+module out_reg (
 	(* iopad_external_pin *)
 	output dataOut,
-	(* clkbuf_inhibit *) 
+    (* clkbuf_sink *)
 	input clk, 
-	(* iopad_external_pin *)
 	input rst, 
 	input dataIn
 );
@@ -173,7 +166,9 @@ module RAM (RADDR,RRLSEL,REN,RMODE,
 
    input [10:0] RADDR,WADDR;
    input [1:0] 	RRLSEL,RMODE,WMODE;
-   input 	REN,WEN,FFLUSH,RCLK,WCLK;
+   input 	REN,WEN,FFLUSH;
+   (* clkbuf_sink *)
+   input RCLK, WCLK;
    input [31:0] WDATA;
    input [1:0] 	SBOG, ENDIAN, UPAF, UPAE;
    output [31:0] RDATA;
@@ -210,7 +205,9 @@ input [1:0] MODE_SEL,OUT_SEL;
 input [1:0] CSEL;
 input [1:0] OSEL;
 input [31:0] COEF_DATA,OPER_DATA;
-input ENABLE,CLR,RND,SAT,CLOCK;
+input ENABLE,CLR,RND,SAT;
+(* clkbuf_sink *)
+input CLOCK;
 input [1:0]SBOG;
 output [63:0] MAC_OUT;
 

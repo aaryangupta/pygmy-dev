@@ -55,7 +55,6 @@ The purpose of VPR is to make the packing, placement, and routing stages of the 
    graphics
 
    timing_constraints
-   placement_constraints
    sdc_commands
 
    file_formats

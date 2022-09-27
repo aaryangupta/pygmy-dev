@@ -28,7 +28,6 @@ static void log_single_overused_node_status(int overuse_index, RRNodeId inode);
  */
 void log_overused_nodes_status(int max_logged_overused_rr_nodes) {
     const auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     const auto& route_ctx = g_vpr_ctx.routing();
 
     //Print overuse info header
@@ -36,11 +35,11 @@ void log_overused_nodes_status(int max_logged_overused_rr_nodes) {
 
     //Print overuse info body
     int overuse_index = 0;
-    for (const RRNodeId& rr_id : rr_graph.nodes()) {
-        int overuse = route_ctx.rr_node_route_inf[(size_t)rr_id].occ() - rr_graph.node_capacity(rr_id);
+    for (size_t inode = 0; inode < device_ctx.rr_nodes.size(); inode++) {
+        int overuse = route_ctx.rr_node_route_inf[inode].occ() - device_ctx.rr_nodes[inode].capacity();
 
         if (overuse > 0) {
-            log_single_overused_node_status(overuse_index, rr_id);
+            log_single_overused_node_status(overuse_index, RRNodeId(inode));
             ++overuse_index;
 
             //Reached the logging limit
@@ -59,7 +58,8 @@ void log_overused_nodes_status(int max_logged_overused_rr_nodes) {
  * This report will be generated only if the last routing attempt fails, which
  * causes the whole VPR flow to fail.
  */
-void report_overused_nodes(const RRGraphView& rr_graph) {
+void report_overused_nodes() {
+    const auto& device_ctx = g_vpr_ctx.device();
     const auto& route_ctx = g_vpr_ctx.routing();
 
     /* Generate overuse info lookup table */
@@ -83,11 +83,11 @@ void report_overused_nodes(const RRGraphView& rr_graph) {
         os << "Overused RR node #" << inode << '\n';
         os << "Node id = " << size_t(node_id) << '\n';
         os << "Occupancy = " << route_ctx.rr_node_route_inf[size_t(node_id)].occ() << '\n';
-        os << "Capacity = " << rr_graph.node_capacity(node_id) << "\n\n";
+        os << "Capacity = " << device_ctx.rr_nodes.node_capacity(node_id) << "\n\n";
 
         /* Report selective info based on the rr node type */
-        auto node_type = rr_graph.node_type(node_id);
-        os << "Node type = " << rr_graph.node_type_string(node_id) << '\n';
+        auto node_type = device_ctx.rr_nodes.node_type(node_id);
+        os << "Node type = " << device_ctx.rr_nodes.node_type_string(node_id) << '\n';
 
         switch (node_type) {
             case IPIN:
@@ -129,7 +129,6 @@ void report_overused_nodes(const RRGraphView& rr_graph) {
  */
 void generate_overused_nodes_to_congested_net_lookup(std::map<RRNodeId, std::set<ClusterNetId>>& nodes_to_nets_lookup) {
     const auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     const auto& route_ctx = g_vpr_ctx.routing();
     const auto& cluster_ctx = g_vpr_ctx.clustering();
 
@@ -139,7 +138,7 @@ void generate_overused_nodes_to_congested_net_lookup(std::map<RRNodeId, std::set
         for (t_trace* tptr = route_ctx.trace[net_id].head; tptr != nullptr; tptr = tptr->next) {
             int inode = tptr->index;
 
-            int overuse = route_ctx.rr_node_route_inf[inode].occ() - rr_graph.node_capacity(RRNodeId(inode));
+            int overuse = route_ctx.rr_node_route_inf[inode].occ() - device_ctx.rr_nodes[inode].capacity();
             if (overuse > 0) {
                 nodes_to_nets_lookup[RRNodeId(inode)].insert(net_id);
             }
@@ -150,17 +149,16 @@ void generate_overused_nodes_to_congested_net_lookup(std::map<RRNodeId, std::set
 ///@brief Print out information specific to IPIN/OPIN type rr nodes
 static void report_overused_ipin_opin(std::ostream& os, RRNodeId node_id) {
     const auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     const auto& place_ctx = g_vpr_ctx.placement();
 
-    auto grid_x = rr_graph.node_xlow(node_id);
-    auto grid_y = rr_graph.node_ylow(node_id);
+    auto grid_x = device_ctx.rr_nodes.node_xlow(node_id);
+    auto grid_y = device_ctx.rr_nodes.node_ylow(node_id);
     VTR_ASSERT_MSG(
-        grid_x == rr_graph.node_xhigh(node_id) && grid_y == rr_graph.node_yhigh(node_id),
+        grid_x == device_ctx.rr_nodes.node_xhigh(node_id) && grid_y == device_ctx.rr_nodes.node_yhigh(node_id),
         "Non-track RR node should not span across multiple grid blocks.");
 
-    os << "Pin number = " << rr_graph.node_pin_num(node_id) << '\n';
-    os << "Side = " << rr_graph.node_side_string(node_id) << "\n\n";
+    os << "Pin number = " << device_ctx.rr_nodes.node_pin_num(node_id) << '\n';
+    os << "Side = " << device_ctx.rr_nodes.node_side_string(node_id) << "\n\n";
 
     //Add block type for IPINs/OPINs in overused rr-node report
     const auto& clb_nlist = g_vpr_ctx.clustering().clb_nlist;
@@ -188,29 +186,34 @@ static void report_overused_ipin_opin(std::ostream& os, RRNodeId node_id) {
 ///@brief Print out information specific to CHANX/CHANY type rr nodes
 static void report_overused_chanx_chany(std::ostream& os, RRNodeId node_id) {
     const auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
 
-    os << "Track number = " << rr_graph.node_track_num(node_id) << '\n';
+    os << "Track number = " << device_ctx.rr_nodes.node_track_num(node_id) << '\n';
+    os << "Direction = " << device_ctx.rr_nodes.node_direction_string(node_id) << "\n\n";
+
+    //CHANX/CHANY rr nodes span across several grid locations.
+    //Need to print out their starting and ending locations.
+    os << "Grid location: " << '\n';
+    os << "Xlow = " << device_ctx.rr_nodes.node_xlow(node_id) << ", ";
+    os << "Ylow = " << device_ctx.rr_nodes.node_ylow(node_id) << '\n';
+    os << "Xhigh = " << device_ctx.rr_nodes.node_xhigh(node_id) << ", ";
+    os << "Yhigh = " << device_ctx.rr_nodes.node_yhigh(node_id) << '\n';
+
     //Print out associated RC characteristics as they will be non-zero
-    os << "Resistance = " << rr_graph.node_R(node_id) << '\n';
-    os << "Capacitance = " << rr_graph.node_C(node_id) << '\n';
-
-    // print out type, side, x_low, x_high, y_low, y_high, length, direction
-    os << rr_graph.node_coordinate_to_string(node_id) << '\n';
+    os << "Resistance = " << device_ctx.rr_nodes.node_R(node_id) << '\n';
+    os << "Capacitance = " << device_ctx.rr_nodes.node_C(node_id) << '\n';
 }
 
 ///@brief Print out information specific to SOURCE/SINK type rr nodes
 static void report_overused_source_sink(std::ostream& os, RRNodeId node_id) {
     const auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
 
-    auto grid_x = rr_graph.node_xlow(node_id);
-    auto grid_y = rr_graph.node_ylow(node_id);
+    auto grid_x = device_ctx.rr_nodes.node_xlow(node_id);
+    auto grid_y = device_ctx.rr_nodes.node_ylow(node_id);
     VTR_ASSERT_MSG(
-        grid_x == rr_graph.node_xhigh(node_id) && grid_y == rr_graph.node_yhigh(node_id),
+        grid_x == device_ctx.rr_nodes.node_xhigh(node_id) && grid_y == device_ctx.rr_nodes.node_yhigh(node_id),
         "Non-track RR node should not span across multiple grid blocks.");
 
-    os << "Class number = " << rr_graph.node_class_num(node_id) << '\n';
+    os << "Class number = " << device_ctx.rr_nodes.node_class_num(node_id) << '\n';
     os << "Grid location: X = " << grid_x << ", Y = " << grid_y << '\n';
 }
 
@@ -250,11 +253,10 @@ static void log_overused_nodes_header() {
 ///@brief Print out a single-line info that corresponds to a single overused rr node in the logfile
 static void log_single_overused_node_status(int overuse_index, RRNodeId node_id) {
     const auto& device_ctx = g_vpr_ctx.device();
-    const auto& rr_graph = device_ctx.rr_graph;
     const auto& route_ctx = g_vpr_ctx.routing();
 
     //Determines if direction or side is available for printing
-    auto node_type = rr_graph.node_type(node_id);
+    auto node_type = device_ctx.rr_nodes.node_type(node_id);
 
     //Overuse #
     VTR_LOG("%6d", overuse_index);
@@ -266,39 +268,39 @@ static void log_single_overused_node_status(int overuse_index, RRNodeId node_id)
     VTR_LOG(" %10d", route_ctx.rr_node_route_inf[size_t(node_id)].occ());
 
     //Capacity
-    VTR_LOG(" %9d", rr_graph.node_capacity(node_id));
+    VTR_LOG(" %9d", device_ctx.rr_nodes.node_capacity(node_id));
 
     //RR node type
-    VTR_LOG(" %8s", rr_graph.node_type_string(node_id));
+    VTR_LOG(" %8s", device_ctx.rr_nodes.node_type_string(node_id));
 
     //Direction
     if (node_type == e_rr_type::CHANX || node_type == e_rr_type::CHANY) {
-        VTR_LOG(" %12s", rr_graph.node_direction_string(node_id).c_str());
+        VTR_LOG(" %12s", device_ctx.rr_nodes.node_direction_string(node_id));
     } else {
         VTR_LOG(" %12s", "N/A");
     }
 
     //Side
     if (node_type == e_rr_type::IPIN || node_type == e_rr_type::OPIN) {
-        VTR_LOG(" %7s", rr_graph.node_side_string(node_id));
+        VTR_LOG(" %7s", device_ctx.rr_nodes.node_side_string(node_id));
     } else {
         VTR_LOG(" %7s", "N/A");
     }
 
     //PTC number
-    VTR_LOG(" %7d", rr_graph.node_ptc_num(node_id));
+    VTR_LOG(" %7d", device_ctx.rr_nodes.node_ptc_num(node_id));
 
     //X_low
-    VTR_LOG(" %7d", rr_graph.node_xlow(node_id));
+    VTR_LOG(" %7d", device_ctx.rr_nodes.node_xlow(node_id));
 
     //Y_low
-    VTR_LOG(" %7d", rr_graph.node_ylow(node_id));
+    VTR_LOG(" %7d", device_ctx.rr_nodes.node_ylow(node_id));
 
     //X_high
-    VTR_LOG(" %7d", rr_graph.node_xhigh(node_id));
+    VTR_LOG(" %7d", device_ctx.rr_nodes.node_xhigh(node_id));
 
     //Y_high
-    VTR_LOG(" %7d", rr_graph.node_yhigh(node_id));
+    VTR_LOG(" %7d", device_ctx.rr_nodes.node_yhigh(node_id));
 
     VTR_LOG("\n");
 

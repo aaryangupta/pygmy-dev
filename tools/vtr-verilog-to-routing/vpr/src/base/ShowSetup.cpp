@@ -1,5 +1,3 @@
-#include <fstream>
-
 #include "vtr_assert.h"
 #include "vtr_log.h"
 #include "vtr_memory.h"
@@ -20,9 +18,9 @@ static void ShowPlacerOpts(const t_placer_opts& PlacerOpts,
                            const t_annealing_sched& AnnealSched);
 static void ShowRouterOpts(const t_router_opts& RouterOpts);
 static void ShowAnalysisOpts(const t_analysis_opts& AnalysisOpts);
-static void ShowNocOpts(const t_noc_opts& NocOpts);
 
 static void ShowAnnealSched(const t_annealing_sched& AnnealSched);
+static void ShowRoutingArch(const t_det_routing_arch& RoutingArch);
 
 /******** Function Implementations ********/
 
@@ -33,11 +31,6 @@ void ShowSetup(const t_vpr_setup& vpr_setup) {
     VTR_LOG("Circuit placement file: %s\n", vpr_setup.FileNameOpts.PlaceFile.c_str());
     VTR_LOG("Circuit routing file: %s\n", vpr_setup.FileNameOpts.RouteFile.c_str());
     VTR_LOG("Circuit SDC file: %s\n", vpr_setup.Timing.SDCFile.c_str());
-    if (vpr_setup.FileNameOpts.read_vpr_constraints_file.empty()) {
-        VTR_LOG("Vpr floorplanning constraints file: not specified\n");
-    } else {
-        VTR_LOG("Vpr floorplanning constraints file: %s\n", vpr_setup.FileNameOpts.read_vpr_constraints_file.c_str());
-    }
     VTR_LOG("\n");
 
     VTR_LOG("Packer: %s\n", (vpr_setup.PackerOpts.doPacking ? "ENABLED" : "DISABLED"));
@@ -45,8 +38,6 @@ void ShowSetup(const t_vpr_setup& vpr_setup) {
     VTR_LOG("Router: %s\n", (vpr_setup.RouterOpts.doRouting ? "ENABLED" : "DISABLED"));
     VTR_LOG("Analysis: %s\n", (vpr_setup.AnalysisOpts.doAnalysis ? "ENABLED" : "DISABLED"));
     VTR_LOG("\n");
-
-    VTR_LOG("VPR was run with the following options:\n\n");
 
     ShowNetlistOpts(vpr_setup.NetlistOpts);
 
@@ -62,141 +53,97 @@ void ShowSetup(const t_vpr_setup& vpr_setup) {
     if (vpr_setup.AnalysisOpts.doAnalysis) {
         ShowAnalysisOpts(vpr_setup.AnalysisOpts);
     }
-    if (vpr_setup.NocOpts.noc) {
-        ShowNocOpts(vpr_setup.NocOpts);
-    }
+
+    if (DETAILED == vpr_setup.RouterOpts.route_type)
+        ShowRoutingArch(vpr_setup.RoutingArch);
 }
 
-void ClusteredNetlistStats::writeHuman(std::ostream& output) const {
-    output << "Cluster level netlist and block usage statistics\n";
-    output << "Netlist num_nets: " << num_nets << "\n";
-    output << "Netlist num_blocks: " << num_blocks << "\n";
-    for (const auto& type : logical_block_types) {
-        output << "Netlist " << type.name << " blocks: " << num_blocks_type[type.index] << ".\n";
-    }
-
-    output << "Netlist inputs pins: " << L_num_p_inputs << "\n";
-    output << "Netlist output pins: " << L_num_p_outputs << "\n";
-}
-void ClusteredNetlistStats::writeJSON(std::ostream& output) const {
-    output << "{\n";
-
-    output << "  \"num_nets\": \"" << num_nets << "\",\n";
-    output << "  \"num_blocks\": \"" << num_blocks << "\",\n";
-
-    output << "  \"input_pins\": \"" << L_num_p_inputs << "\",\n";
-    output << "  \"output_pins\": \"" << L_num_p_outputs << "\",\n";
-
-    output << "  \"blocks\": {\n";
-
-    for (const auto& type : logical_block_types) {
-        output << "    \"" << type.name << "\": " << num_blocks_type[type.index];
-        if ((int)type.index < (int)logical_block_types.size() - 1)
-            output << ",\n";
-        else
-            output << "\n";
-    }
-    output << "  }\n";
-    output << "}\n";
-}
-
-void ClusteredNetlistStats::writeXML(std::ostream& output) const {
-    output << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    output << "<block_usage_report>\n";
-
-    output << "  <nets num=\"" << num_nets << "\"></nets>\n";
-    output << "  <blocks num=\"" << num_blocks << "\">\n";
-
-    for (const auto& type : logical_block_types) {
-        output << "    <block type=\"" << type.name << "\" usage=\"" << num_blocks_type[type.index] << "\"></block>\n";
-    }
-    output << "  </blocks>\n";
-
-    output << "  <input_pins num=\"" << L_num_p_inputs << "\"></input_pins>\n";
-    output << "  <output_pins num=\"" << L_num_p_outputs << "\"></output_pins>\n";
-
-    output << "</block_usage_report>\n";
-}
-
-ClusteredNetlistStats::ClusteredNetlistStats() {
+void printClusteredNetlistStats() {
     auto& device_ctx = g_vpr_ctx.device();
     auto& cluster_ctx = g_vpr_ctx.clustering();
 
-    int j;
-    L_num_p_inputs = 0;
-    L_num_p_outputs = 0;
-    num_blocks_type = std::vector<int>(device_ctx.logical_block_types.size(), 0);
-    num_nets = (int)cluster_ctx.clb_nlist.nets().size();
-    num_blocks = (int)cluster_ctx.clb_nlist.blocks().size();
-    logical_block_types = device_ctx.logical_block_types;
+    int j, L_num_p_inputs, L_num_p_outputs;
+    std::vector<int> num_blocks_type(device_ctx.logical_block_types.size(), 0);
+
+    VTR_LOG("\n");
+    VTR_LOG("Netlist num_nets: %d\n", (int)cluster_ctx.clb_nlist.nets().size());
+    VTR_LOG("Netlist num_blocks: %d\n", (int)cluster_ctx.clb_nlist.blocks().size());
 
     /* Count I/O input and output pads */
+    L_num_p_inputs = 0;
+    L_num_p_outputs = 0;
+
     for (auto blk_id : cluster_ctx.clb_nlist.blocks()) {
         auto logical_block = cluster_ctx.clb_nlist.block_type(blk_id);
-        auto physical_tile = pick_physical_type(logical_block);
+        auto physical_tile = pick_best_physical_type(logical_block);
         num_blocks_type[logical_block->index]++;
         if (is_io_type(physical_tile)) {
             for (j = 0; j < logical_block->pb_type->num_pins; j++) {
                 int physical_pin = get_physical_pin(physical_tile, logical_block, j);
+                auto pin_class = physical_tile->pin_class[physical_pin];
+                auto class_inf = physical_tile->class_inf[pin_class];
 
                 if (cluster_ctx.clb_nlist.block_net(blk_id, j) != ClusterNetId::INVALID()) {
-                    auto pin_type = get_pin_type_from_pin_physical_num(physical_tile, physical_pin);
-                    if (pin_type == DRIVER) {
+                    if (class_inf.type == DRIVER) {
                         L_num_p_inputs++;
                     } else {
-                        VTR_ASSERT(pin_type == RECEIVER);
+                        VTR_ASSERT(class_inf.type == RECEIVER);
                         L_num_p_outputs++;
                     }
                 }
             }
         }
     }
+
+    for (const auto& type : device_ctx.logical_block_types) {
+        VTR_LOG("Netlist %s blocks: %d.\n", type.name, num_blocks_type[type.index]);
+    }
+
+    /* Print out each block separately instead */
+    VTR_LOG("Netlist inputs pins: %d\n", L_num_p_inputs);
+    VTR_LOG("Netlist output pins: %d\n", L_num_p_outputs);
+    VTR_LOG("\n");
+    num_blocks_type.clear();
 }
 
-void ClusteredNetlistStats::write(OutputFormat fmt, std::ostream& output) const {
-    switch (fmt) {
-        case HumanReadable:
-            writeHuman(output);
+static void ShowRoutingArch(const t_det_routing_arch& RoutingArch) {
+    VTR_LOG("RoutingArch.directionality: ");
+    switch (RoutingArch.directionality) {
+        case BI_DIRECTIONAL:
+            VTR_LOG("BI_DIRECTIONAL\n");
             break;
-        case JSON:
-            writeJSON(output);
-            break;
-        case XML:
-            writeXML(output);
+        case UNI_DIRECTIONAL:
+            VTR_LOG("UNI_DIRECTIONAL\n");
             break;
         default:
-            VPR_FATAL_ERROR(VPR_ERROR_PACK,
-                            "Unknown extension on in block usage summary file");
+            VPR_FATAL_ERROR(VPR_ERROR_UNKNOWN, "<Unknown>\n");
             break;
     }
-}
 
-void writeClusteredNetlistStats(std::string block_usage_filename) {
-    const auto stats = ClusteredNetlistStats();
-
-    // Print out the human readable version to stdout
-
-    stats.write(ClusteredNetlistStats::OutputFormat::HumanReadable, std::cout);
-
-    if (block_usage_filename.size() > 0) {
-        ClusteredNetlistStats::OutputFormat fmt;
-
-        if (vtr::check_file_name_extension(block_usage_filename.c_str(), ".json")) {
-            fmt = ClusteredNetlistStats::OutputFormat::JSON;
-        } else if (vtr::check_file_name_extension(block_usage_filename.c_str(), ".xml")) {
-            fmt = ClusteredNetlistStats::OutputFormat::XML;
-        } else if (vtr::check_file_name_extension(block_usage_filename.c_str(), ".txt")) {
-            fmt = ClusteredNetlistStats::OutputFormat::HumanReadable;
-        } else {
-            VPR_FATAL_ERROR(VPR_ERROR_PACK, "Unknown extension on output %s", block_usage_filename.c_str());
-        }
-
-        std::fstream fp;
-
-        fp.open(block_usage_filename, std::fstream::out | std::fstream::trunc);
-        stats.write(fmt, fp);
-        fp.close();
+    VTR_LOG("RoutingArch.switch_block_type: ");
+    switch (RoutingArch.switch_block_type) {
+        case SUBSET:
+            VTR_LOG("SUBSET\n");
+            break;
+        case WILTON:
+            VTR_LOG("WILTON\n");
+            break;
+        case UNIVERSAL:
+            VTR_LOG("UNIVERSAL\n");
+            break;
+        case FULL:
+            VTR_LOG("FULL\n");
+            break;
+        case CUSTOM:
+            VTR_LOG("CUSTOM\n");
+            break;
+        default:
+            VTR_LOG_ERROR("switch block type\n");
     }
+
+    VTR_LOG("RoutingArch.Fs: %d\n", RoutingArch.Fs);
+
+    VTR_LOG("\n");
 }
 
 static void ShowAnnealSched(const t_annealing_sched& AnnealSched) {
@@ -241,13 +188,6 @@ static void ShowRouterOpts(const t_router_opts& RouterOpts) {
             break;
         default:
             VTR_LOG_ERROR("Unknown router opt\n");
-    }
-
-    VTR_LOG("RouterOpts.flat_routing: ");
-    if (RouterOpts.flat_routing) {
-        VTR_LOG("true\n");
-    } else {
-        VTR_LOG("false\n");
     }
 
     if (DETAILED == RouterOpts.route_type) {
@@ -701,31 +641,6 @@ static void ShowAnalysisOpts(const t_analysis_opts& AnalysisOpts) {
         default:
             VPR_FATAL_ERROR(VPR_ERROR_UNKNOWN, "Unknown timing_report_detail\n");
     }
-
-    const auto opts = {
-        std::make_tuple(&AnalysisOpts.post_synth_netlist_unconn_input_handling, "post_synth_netlist_unconn_input_handling"),
-        std::make_tuple(&AnalysisOpts.post_synth_netlist_unconn_output_handling, "post_synth_netlist_unconn_output_handling"),
-    };
-    for (const auto& opt : opts) {
-        auto value = *std::get<0>(opt);
-        VTR_LOG("AnalysisOpts.%s: ", std::get<1>(opt));
-        switch (value) {
-            case e_post_synth_netlist_unconn_handling::UNCONNECTED:
-                VTR_LOG("UNCONNECTED\n");
-                break;
-            case e_post_synth_netlist_unconn_handling::NETS:
-                VTR_LOG("NETS\n");
-                break;
-            case e_post_synth_netlist_unconn_handling::GND:
-                VTR_LOG("GND\n");
-                break;
-            case e_post_synth_netlist_unconn_handling::VCC:
-                VTR_LOG("VCC\n");
-                break;
-            default:
-                VPR_FATAL_ERROR(VPR_ERROR_UNKNOWN, "Unknown post_synth_netlist_unconn_handling\n");
-        }
-    }
     VTR_LOG("\n");
 }
 
@@ -772,11 +687,5 @@ static void ShowPackerOpts(const t_packer_opts& PackerOpts) {
     VTR_LOG("PackerOpts.timing_driven: %s", (PackerOpts.timing_driven ? "true\n" : "false\n"));
     VTR_LOG("PackerOpts.target_external_pin_util: %s", vtr::join(PackerOpts.target_external_pin_util, " ").c_str());
     VTR_LOG("\n");
-    VTR_LOG("\n");
-}
-
-static void ShowNocOpts(const t_noc_opts& NocOpts) {
-    VTR_LOG("NocOpts.noc_flows_file: %s\n", NocOpts.noc_flows_file.c_str());
-    VTR_LOG("NocOpts.noc_routing_algorithm: %s\n", NocOpts.noc_routing_algorithm.c_str());
     VTR_LOG("\n");
 }

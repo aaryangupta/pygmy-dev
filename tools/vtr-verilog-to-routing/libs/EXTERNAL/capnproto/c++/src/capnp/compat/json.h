@@ -60,7 +60,9 @@ class JsonCodec {
   //   different ways people do this.
   // - Encoding/decoding capabilities and AnyPointers requires registering a Handler, since there's
   //   no obvious default behavior.
-  // - When decoding, fields with unknown names are ignored by default to allow schema evolution.
+  // - When decoding, unrecognized field names are ignored. Note: This means that JSON is NOT a
+  //   good format for receiving input from a human. Consider `capnp eval` or the SchemaParser
+  //   library for human input.
 
 public:
   JsonCodec();
@@ -82,11 +84,6 @@ public:
   // value (HasMode::NON_NULL -- only null pointers are omitted). You can use
   // setHasMode(HasMode::NON_DEFAULT) to specify that default-valued primitive fields should be
   // omitted as well.
-
-  void setRejectUnknownFields(bool enable);
-  // Choose whether decoding JSON with unknown fields should produce an error. You may trade
-  // allowing schema evolution against a guarantee that all data is preserved when decoding JSON
-  // by toggling this option. The default is to ignore unknown fields.
 
   template <typename T>
   kj::String encode(T&& value) const;
@@ -304,12 +301,6 @@ template <typename T>
 void JsonCodec::encode(T&& value, JsonValue::Builder output) const {
   typedef FromAny<kj::Decay<T>> Base;
   encode(DynamicValue::Reader(ReaderFor<Base>(kj::fwd<T>(value))), Type::from<Base>(), output);
-}
-
-template <>
-inline void JsonCodec::encode<DynamicStruct::Reader>(
-      DynamicStruct::Reader&& value, JsonValue::Builder output) const {
-  encode(DynamicValue::Reader(value), value.getSchema(), output);
 }
 
 template <typename T>

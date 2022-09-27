@@ -29,36 +29,16 @@
 #include "compiler/node-translator.h"
 #include "compiler/parser.h"
 
-namespace capnp {
-
 namespace {
 
 class ThrowingErrorReporter final: public capnp::compiler::ErrorReporter {
   // Throws all errors as assertion failures.
 public:
-  ThrowingErrorReporter(kj::StringPtr input): input(input) {}
-
   void addError(uint32_t startByte, uint32_t endByte, kj::StringPtr message) override {
-    // Note: Line and column numbers are usually 1-based.
-    uint line = 1;
-    uint32_t lineStart = 0;
-    for (auto i: kj::zeroTo(startByte)) {
-      if (input[i] == '\n') {
-        ++line;
-        lineStart = i;  // Omit +1 so that column is 1-based.
-      }
-    }
-
-    kj::throwRecoverableException(kj::Exception(
-      kj::Exception::Type::FAILED, "(capnp text input)", line,
-      kj::str(startByte - lineStart, "-", endByte - lineStart, ": ", message)
-    ));
+    KJ_FAIL_REQUIRE(kj::str(message, " (", startByte, ":", endByte, ")."));
   }
 
   bool hadErrors() override { return false; }
-
-private:
-  kj::StringPtr input;
 };
 
 class ExternalResolver final: public capnp::compiler::ValueTranslator::Resolver {
@@ -79,7 +59,7 @@ template <typename Function>
 void lexAndParseExpression(kj::StringPtr input, Function f) {
   // Parses a single expression from the input and calls `f(expression)`.
 
-  ThrowingErrorReporter errorReporter(input);
+  ThrowingErrorReporter errorReporter;
 
   capnp::MallocMessageBuilder tokenArena;
   auto lexedTokens = tokenArena.initRoot<capnp::compiler::LexedTokens>();
@@ -110,6 +90,8 @@ void lexAndParseExpression(kj::StringPtr input, Function f) {
 
 }  // namespace
 
+namespace capnp {
+
 TextCodec::TextCodec() : prettyPrint(false) {}
 TextCodec::~TextCodec() noexcept(true) {}
 
@@ -130,10 +112,10 @@ kj::String TextCodec::encode(DynamicValue::Reader value) const {
 }
 
 void TextCodec::decode(kj::StringPtr input, DynamicStruct::Builder output) const {
-  lexAndParseExpression(input, [&](compiler::Expression::Reader expression) {
-    KJ_REQUIRE(expression.isTuple(), "Input does not contain a struct.") { return; }
+  lexAndParseExpression(input, [&output](compiler::Expression::Reader expression) {
+    KJ_REQUIRE(expression.isTuple(), "Input does not contain a struct.");
 
-    ThrowingErrorReporter errorReporter(input);
+    ThrowingErrorReporter errorReporter;
     ExternalResolver nullResolver;
 
     Orphanage orphanage = Orphanage::getForMessageContaining(output);
@@ -144,9 +126,9 @@ void TextCodec::decode(kj::StringPtr input, DynamicStruct::Builder output) const
 
 Orphan<DynamicValue> TextCodec::decode(kj::StringPtr input, Type type, Orphanage orphanage) const {
   Orphan<DynamicValue> output;
-
-  lexAndParseExpression(input, [&](compiler::Expression::Reader expression) {
-    ThrowingErrorReporter errorReporter(input);
+  
+  lexAndParseExpression(input, [&type, &orphanage, &output](compiler::Expression::Reader expression) {
+    ThrowingErrorReporter errorReporter;
     ExternalResolver nullResolver;
 
     compiler::ValueTranslator translator(nullResolver, errorReporter, orphanage);
@@ -156,7 +138,7 @@ Orphan<DynamicValue> TextCodec::decode(kj::StringPtr input, Type type, Orphanage
       // An error should have already been given to the errorReporter.
     }
   });
-
+  
   return output;
 }
 
