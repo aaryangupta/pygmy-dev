@@ -1,9 +1,0 @@
-sphinx_materialdesign_theme
-
-docutils
-sphinx
-sphinx-autobuild
-
-breathe
-sphinx-markdown-tables
-sphinxcontrib-napoleon

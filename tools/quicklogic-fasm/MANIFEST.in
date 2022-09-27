@@ -1,8 +1,0 @@
-include *.md
-exclude *.swp
-
-include LICENSE
-
-recursive-include quicklogic_fasm *.py
-
-recursive-include quicklogic_fasm/ql732b *.db

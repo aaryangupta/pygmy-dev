@@ -1,2 +1,0 @@
--e git+https://github.com/chipsalliance/fasm.git#egg=fasm
--e git+https://github.com/antmicro/quicklogic-fasm-utils.git#egg=fasm-utils
