@@ -48,7 +48,7 @@ cd ~
 #Create directory for building the toolchain
 mkdir -p ~/symbiflow
 export INSTALL_DIR=~/symbiflow
-apt install curl
+apt install curl wget
 
 #Download and extract symbiflow OR copy from another source
 # Latest: curl $(curl https://storage.googleapis.com/symbiflow-arch-defs-install/latest) > ~/arch.tar.gz
@@ -66,21 +66,22 @@ git clone --recursive https://github.com/aaryangupta/pygmy-dev.git
 
 #Compile yosys
 cd ~/pygmy-dev/tools/quicklogic-yosys/
-make config-gcc
-make -j4 install PREFIX=$INSTALL_DIR
-cd ~
-
-#Compile yosys-plugins
-cd ~
 git clone https://github.com/YosysHQ/yosys.git
+apt install clang
 make config-clang
 make
 make test
 make install
-cd ~/pygmy-dev/tools/yosys-symbiflow-plugins/
-export PATH=$INSTALL_DIR/bin:$PATH
-make -j4 install
+
+#Compile yosys-plugins
 cd ~
+git clone https://github.com/SymbiFlow/yosys-symbiflow-plugins.git
+cd ~/pygmy-dev/tools/yosys-symbiflow-plugins/
+git checkout b170f1d3575568d87901422f846b700169e299be
+sed -i -e 's@-include third_party/make-env/conda.mk@#-include third_party/make-env/conda.mk@' Makefile
+make -j$(nproc)
+make install
+
 
 #Compile VTR
 cd ~/pygmy-dev/tools/vtr-verilog-to-routing/
