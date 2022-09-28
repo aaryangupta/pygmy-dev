@@ -48,7 +48,7 @@ cd ~
 #Create directory for building the toolchain
 mkdir -p ~/symbiflow
 export INSTALL_DIR=~/symbiflow
-apt install curl wget
+apt install curl wget vim nano
 
 #Download and extract symbiflow OR copy from another source
 # Latest: curl $(curl https://storage.googleapis.com/symbiflow-arch-defs-install/latest) > ~/arch.tar.gz
@@ -102,6 +102,7 @@ yosys -h
 genfasm -h
 
 cd ~/pygmy-dev/tools/cd quicklogic-fasm/
+pip3 install Cython
 pip3 install -r requirements.txt 
 python3 setup.py install
 cd ~
